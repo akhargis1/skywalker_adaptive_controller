@@ -35,8 +35,10 @@ class X8Params:
 
     Cl_alpha: float =  0.000     # roll due to AoA — symmetric X8, effectively zero
     Cm_alpha: float = -0.380     # pitch stiffness (estimated — cma=0 in SDF)
-    Cl_delta: float =  0.625     # roll per rad differential elevon  [SDF-derived]
-    Cm_delta: float = -1.339     # pitch per rad symmetric elevon    [SDF-derived]
+    #Cl_delta: float =  0.625     # roll per rad differential elevon  [SDF-derived]
+    Cl_delta: float =  0.0     # roll per rad differential elevon  [SDF-derived]
+    #Cm_delta: float = -1.339     # pitch per rad symmetric elevon    [SDF-derived]
+    Cm_delta: float =  0.0     # pitch per rad symmetric elevon    [SDF-derived]
     Cn_beta:  float =  0.342     # yaw per rad sideslip via winglets  [SDF-derived]
     K_drag:   float =  0.031     # roll-yaw drag coupling (retain estimate)
     
