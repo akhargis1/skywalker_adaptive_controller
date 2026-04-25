@@ -26,19 +26,26 @@ class X8Params:
     # TODO - UNSURE ON BELOW VALUES - may be able to extract from logs or the paper 
     # these may be in the paper, just need to be lined up correctly potentiallly
     # --- Stability derivatives (per radian) ---
-    Cl_alpha: float =  0.00      # roll due to AoA (symmetric X8 ≈ 0)
-    Cm_alpha: float = -0.38      # pitch stiffness  (negative = stable)
-    Cl_delta: float =  0.22      # roll per differential elevon
-    Cm_delta: float = -0.65      # pitch per symmetric elevon
-    Cn_beta:  float =  0.048     # yaw due to sideslip (drag asymmetry)
-    K_drag:   float =  0.031     # roll-yaw drag coupling
+    #Cl_alpha: float =  0.00      # roll due to AoA (symmetric X8 ≈ 0)
+    #Cm_alpha: float = -0.38      # pitch stiffness  (negative = stable)
+    #Cl_delta: float =  0.22      # roll per differential elevon
+    #Cm_delta: float = -0.65      # pitch per symmetric elevon
+    #Cn_beta:  float =  0.048     # yaw due to sideslip (drag asymmetry)
+    #K_drag:   float =  0.031     # roll-yaw drag coupling
 
+    Cl_alpha: float =  0.000     # roll due to AoA — symmetric X8, effectively zero
+    Cm_alpha: float = -0.380     # pitch stiffness (estimated — cma=0 in SDF)
+    Cl_delta: float =  0.625     # roll per rad differential elevon  [SDF-derived]
+    Cm_delta: float = -1.339     # pitch per rad symmetric elevon    [SDF-derived]
+    Cn_beta:  float =  0.342     # yaw per rad sideslip via winglets  [SDF-derived]
+    K_drag:   float =  0.031     # roll-yaw drag coupling (retain estimate)
+    
     # --- Nominal flight condition ---
     rho:   float = 1.225         # air density, kg/m³
     V_nom: float = 17.0          # cruise airspeed, m/s
 
     # --- Actuator limits ---
-    elevon_limit_deg: float = 25.0   # ± physical travel
+    elevon_limit_deg: float = 30.0   # ± physical travel
 
     @property
     def q_nom(self) -> float:
