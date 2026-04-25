@@ -18,19 +18,11 @@ def send(left_deg, right_deg):
     )
 
 tests = [
-    ("neutral",              0,    0),
-    ("full left elevon up", +30,   0),
-    ("full left elevon dn", -30,   0),
-    ("neutral again",         0,   0),
-    ("full right elevon up",  0, +30),
-    ("full right elevon dn",  0, -30),
-    ("neutral again",         0,   0),
-    ("symmetric up",        +15, +15),   # should pitch
-    ("symmetric down",      -15, -15),   # should pitch other way
-    ("neutral again",         0,   0),
-    ("differential",        +15, -15),   # should roll
-    ("differential other",  -15, +15),   # should roll other way
-    ("neutral final",         0,   0),
+    ("neutral",          0,    0),
+    ("symmetric up",   +15,  +15),   # watch: nose up or down?
+    ("neutral",          0,    0),
+    ("differential",   +15,  -15),   # watch: roll left or right?
+    ("neutral final",    0,    0),
 ]
 
 for label, l, r in tests:
