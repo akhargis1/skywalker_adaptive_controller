@@ -113,7 +113,7 @@ def main():
     if args.rc:   
         print("[MODE] Switching to MANUAL ...")
         set_mode(conn, 0)   # 0 = MANUAL on ArduPlane
-        self.toggle_research_mode(active=True)
+        toggle_research_mode(active=True)
         time.sleep(1)
 
     print(f"[RUN] {args.test} sequence at {args.hz:.0f} Hz.  Ctrl-C to stop.\n")
@@ -154,7 +154,7 @@ def main():
             if reason:
                 print(f"\n[ABORT] {reason}")
                 set_mode(conn, FBWA_MODE)
-                self.toggle_research_mode(active=False)
+                toggle_research_mode(active=False)
                 break
 
             # --- Send ---
