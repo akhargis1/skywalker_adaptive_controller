@@ -33,7 +33,8 @@ from x8_params     import X8Params, CASMCGains
 from x8_controller import X8Controller
 from x8_mavlink    import (connect, wait_for_state, set_mode,
                            StateBuffer, MAVReceiver,
-                           send_attitude_target, send_rc_override,
+                           send_attitude_target, send_elevon_direct, 
+                           toggle_research_mode, 
                            GUIDED_MODE, FBWA_MODE)
 from x8_sequencer  import TestSequencer, AbortChecker
 from x8_logger     import FlightLogger
@@ -52,19 +53,6 @@ def parse_args():
                    help='Auto-arm and switch to GUIDED')
     p.add_argument('--verbose', action='store_true')
     return p.parse_args()
-    
-def toggle_research_mode(active=True):
-        """Switches SERVO_FUNCTION between 1 (PassThru) and 77/78 (Elevon)"""
-        val_l = 1 if active else 77
-        val_r = 1 if active else 78
-        
-        params = [('SERVO1_FUNCTION', val_l), ('SERVO2_FUNCTION', val_r)]
-        for p_name, p_val in params:
-            conn.mav.param_set_send(
-                conn.target_system, conn.target_component,
-                p_name.encode('utf-8'), p_val, mavutil.mavlink.MAV_PARAM_TYPE_REAL32
-            )
-        print(f"Mode Switched: {'Direct Research Control' if active else 'ArduPilot Internal'}")
 
 def main():
     args = parse_args()
