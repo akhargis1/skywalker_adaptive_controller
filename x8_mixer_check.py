@@ -10,7 +10,7 @@ def to_pwm(deg, limit=30.0):
 
 def send(left_deg, right_deg):
     ch1 = to_pwm(left_deg)   # SERVO1 = left elevon
-    ch2 = to_pwm(-right_deg)  # SERVO2 = right elevon
+    ch2 = to_pwm(right_deg)  # SERVO2 = right elevon
     print(f"Sending L={left_deg:+.0f}° ({ch1} µs)  R={right_deg:+.0f}° ({ch2} µs)")
     conn.mav.rc_channels_override_send(
         conn.target_system, conn.target_component,
