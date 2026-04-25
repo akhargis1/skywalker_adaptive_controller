@@ -81,6 +81,8 @@ class TestSequencer:
             return np.array([0.0, r(2), state.psi])
 
 
+    # need to add a lawnmower pattern here
+
 # ---------------------------------------------------------------------------
 # Abort checker
 # ---------------------------------------------------------------------------
