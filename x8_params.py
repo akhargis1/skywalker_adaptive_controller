@@ -12,17 +12,19 @@ from dataclasses import dataclass, field
 @dataclass
 class X8Params:
     # --- Mass & geometry ---
-    mass:      float = 2.1       # kg
+    mass:      float = 4.5       # kg
     wingspan:  float = 2.12      # m
-    mac:       float = 0.28      # mean aerodynamic chord, m
-    Sref:      float = 0.55      # wing reference area, m²
+    mac:       float = 0.3571      # mean aerodynamic chord, m
+    Sref:      float = 0.75      # wing reference area, m²
 
     # --- Inertia tensor (body frame, nominal CG) ---
-    Ixx: float = 0.105           # kg·m²  roll
-    Iyy: float = 0.082           # kg·m²  pitch
-    Izz: float = 0.178           # kg·m²  yaw
-    Ixz: float = 0.012           # kg·m²  flying-wing cross term
+    Ixx: float = 0.45           # kg·m²  roll
+    Iyy: float = 0.325           # kg·m²  pitch
+    Izz: float = 0.75          # kg·m²  yaw
+    Ixz: float = 0.06           # kg·m²  flying-wing cross term
 
+    # TODO - UNSURE ON BELOW VALUES - may be able to extract from logs or the paper 
+    # these may be in the paper, just need to be lined up correctly potentiallly
     # --- Stability derivatives (per radian) ---
     Cl_alpha: float =  0.00      # roll due to AoA (symmetric X8 ≈ 0)
     Cm_alpha: float = -0.38      # pitch stiffness  (negative = stable)
