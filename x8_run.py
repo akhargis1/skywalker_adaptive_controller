@@ -60,8 +60,8 @@ def toggle_research_mode(active=True):
         
         params = [('SERVO1_FUNCTION', val_l), ('SERVO2_FUNCTION', val_r)]
         for p_name, p_val in params:
-            self.conn.mav.param_set_send(
-                self.conn.target_system, self.conn.target_component,
+            conn.mav.param_set_send(
+                conn.target_system, conn.target_component,
                 p_name.encode('utf-8'), p_val, mavutil.mavlink.MAV_PARAM_TYPE_REAL32
             )
         print(f"Mode Switched: {'Direct Research Control' if active else 'ArduPilot Internal'}")
