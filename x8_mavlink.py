@@ -223,6 +223,19 @@ def send_rc_override(conn,
         65535, 65535, 65535, 65535, 65535,
     )
 
+def toggle_research_mode(connection, active=True):
+        """Switches SERVO_FUNCTION between 1 (PassThru) and 77/78 (Elevon)"""
+        val_l = 1 if active else 77
+        val_r = 1 if active else 78
+        
+        params = [('SERVO1_FUNCTION', val_l), ('SERVO2_FUNCTION', val_r)]
+        for p_name, p_val in params:
+            self.connection.mav.param_set_send(
+                self.connection.target_system, self.connection.target_component,
+                p_name.encode('utf-8'), p_val, mavutil.mavlink.MAV_PARAM_TYPE_REAL32
+            )
+        print(f"Mode Switched: {'Direct Research Control' if active else 'ArduPilot Internal'}")
+        
 
 def send_elevon_direct(conn,
                        delta_L_rad:      float,
