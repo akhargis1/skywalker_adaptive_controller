@@ -286,4 +286,4 @@ def send_elevon_direct(conn,
     #)
     
     set_servo_pwm(1, to_pwm(delta_L_rad))
-    set_servo_pwm(2, to_pwm(delta_L_rad))
+    set_servo_pwm(2, to_pwm(delta_R_rad))
