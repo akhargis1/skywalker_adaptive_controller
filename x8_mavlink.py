@@ -154,6 +154,29 @@ def wait_for_state(buf: StateBuffer, timeout: float = 10.0) -> bool:
             return True
         time.sleep(0.05)
     return False
+  
+def get_trim_pwm(conn, samples: int = 25, interval: float = 0.02) -> tuple:
+    """
+    Sample SERVO_OUTPUT_RAW while ArduPlane is flying level.
+    Returns (servo1_avg_pwm, servo2_avg_pwm) — the trim PWM for each elevon.
+    Call this BEFORE switching to research mode.
+    """
+    s1_samples, s2_samples = [], []
+    for _ in range(samples):
+        msg = conn.recv_match(type='SERVO_OUTPUT_RAW', blocking=True, timeout=0.5)
+        if msg:
+            s1_samples.append(msg.servo1_raw)
+            s2_samples.append(msg.servo2_raw)
+        time.sleep(interval)
+
+    if not s1_samples:
+        print("[TRIM] WARNING: No SERVO_OUTPUT_RAW received — defaulting to 1500")
+        return 1500.0, 1500.0
+
+    s1 = sum(s1_samples) / len(s1_samples)
+    s2 = sum(s2_samples) / len(s2_samples)
+    print(f"[TRIM] Servo1={s1:.0f}µs  Servo2={s2:.0f}µs  ({len(s1_samples)} samples)")
+    return s1, s2
 
 
 def set_mode(conn, mode_num: int):
