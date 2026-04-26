@@ -179,6 +179,7 @@ def main():
         print("\n[STOP] User interrupt.")
 
     finally:
+        toggle_research_mode(conn, active=False)
         receiver.stop()
         logger.save()
         print("[DONE]")
