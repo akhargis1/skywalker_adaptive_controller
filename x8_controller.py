@@ -71,16 +71,16 @@ def build_regressor(q_att:    np.ndarray,
     y0[0]  =  dpr                          # Ixx * dp_r
     y0[3]  = -drr                          # -Ixz * dr_r
     y0[4]  =  sc * alpha                   # Cl_α effective
-    y0[6]  =  sc                           # Cl_δ effective (delta injected by mixer)
-    #y0[6]  =  0.0
+    #y0[6]  =  sc                           # Cl_δ effective (delta injected by mixer)
+    y0[6]  =  0.0
                         
     # --- Row 1: pitch (M) ---
     y1     = np.zeros(10)
     y1[1]  =  dqr                          # Iyy * dq_r
     y1[3]  =  pr ** 2 - rr ** 2            # Ixz * (p² - r²)
     y1[5]  =  sc * alpha                   # Cm_α effective
-    y1[7]  =  sc                           # Cm_δ effective
-    #y1[7]  =  0.0
+    #y1[7]  =  sc                           # Cm_δ effective
+    y1[7]  =  0.0
 
     # --- Row 2: yaw (N) ---
     y2     = np.zeros(10)
