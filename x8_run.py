@@ -91,9 +91,9 @@ def main():
     ctrl.dt  = dt
 
 
-
-
-    seq      = TestSequencer(kind=args.test)
+    ctrl.trim_delta_sym = pwm_to_rad(1580)
+    trim_theta = 0.10 
+    seq      = TestSequencer(kind=args.test, trim_theta_rad=trim_theta)
     seq.start()
     abort    = AbortChecker()
     logger   = FlightLogger(prefix=args.log)
