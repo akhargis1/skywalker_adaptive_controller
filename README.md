@@ -4,6 +4,10 @@
 
 Code in development for adaptive and sliding mode controller for the Skywalker X8. This work presents nonlinear control strategies for the underactuated Skywalker X8 (a fixed wing UAV with elevon control surfaces) within a ArduPlane SITL + Gazebo simulation environmnets. We focus on robust attitude and pitch control under disturbances, using sliding mode control (SMC) and adaptive control layers over the ArduPilot PID controller.
 
+<p align="center">
+  <img  width="50%" height="1512" alt="IMG_9160" src="https://github.com/user-attachments/assets/d125cce9-1475-4231-a172-0f982bfd6465" />
+</p>
+
 ## System Architecture
 
 ### Level 1 - Sliding Mode Outer Loop (GUIDED):
