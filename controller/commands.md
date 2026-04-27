@@ -1,4 +1,7 @@
 #### Usage:
+
+##### Ensure SITL is placed is launched, flying at a reasonable velocity (~17mph), at altitude, and placed in GUIDED mode, before running controller.
+
 Base: 
 ```python3 x8_run.py```
 
