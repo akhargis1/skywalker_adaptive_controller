@@ -1,4 +1,4 @@
-# Adaptive Control for Skywalker X8
+# Adaptive & Sliding Mode Control for Skywalker X8
 ###### Alyssa Hargis and Sam Wu // MIT 2.152 Nonlinear Control Spring 2026
 
 Code in development for adaptive and sliding mode controller for the Skywalker X8.
