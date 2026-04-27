@@ -90,8 +90,12 @@ def main():
     ctrl     = X8Controller(params, gains)
     ctrl.dt  = dt
 
-    ctrl.trim_delta_sym = 0.1047
-    trim_theta = 0.10 
+    #ctrl.trim_delta_sym = 0.1047
+    #trim_theta = 0.10 
+
+    ctrl.trim_delta_sym = 0
+    trim_theta = 0
+
     seq      = TestSequencer(kind=args.test, trim_theta_rad=trim_theta)
     seq.start()
     abort    = AbortChecker()
