@@ -110,13 +110,6 @@ def main():
                                elevon_limit_deg=params.elevon_limit_deg)
             time.sleep(0.02)
 
-        
-        time.sleep(1)
-        
-    for _ in range(5):
-        buf.read()
-        time.sleep(0.02)
-    
     state0 = buf.read()
     ctrl.reset(np.array([state0.phi, state0.theta, state0.psi]))
     
