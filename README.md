@@ -9,7 +9,7 @@ Presents two levels using Mavlink through ArduPlane SITL with Gazebo integration
 
 - Presents a sliding mode controller on pitch and roll control while using the ArduPlane inner control loop as the stabilizer within GUIDED mode (ie. ArduPlane software) manages the low-level control. 
 
-- Implemented using parameters from [1] and (https://github.com/ArduPilot/SITL_Models/blob/master/Gazebo/docs/SkywalkerX8.md).
+- Implemented using parameters from [1] and [2].
 
 ### Level 2: 
 
@@ -22,3 +22,5 @@ Presents two levels using Mavlink through ArduPlane SITL with Gazebo integration
 
 [1] K. Gryte, R. Hann, M. Alam, J. Roháč, T. A. Johansen and T. I. Fossen, "Aerodynamic modeling of the Skywalker X8 Fixed-Wing Unmanned Aerial Vehicle," 2018 International Conference on Unmanned Aircraft Systems (ICUAS), Dallas, TX, USA, 2018, pp. 826-835, doi: 10.1109/ICUAS.2018.8453370.
 keywords: {Atmospheric modeling;Aerodynamics;Wind tunnels;Mathematical model;Numerical models;Aircraft},
+
+[2] https://github.com/ArduPilot/SITL_Models/blob/master/Gazebo/docs/SkywalkerX8.md
