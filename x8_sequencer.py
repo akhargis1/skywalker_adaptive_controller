@@ -32,7 +32,7 @@ class TestSequencer:
 
     SEQUENCES = ('doublet', 'pitch_doublet', 'chirp', 'cruise')
 
-    def __init__(self, kind: str = 'doublet'):
+    def __init__(self, kind: str = 'doublet',  trim_theta_rad: float = 0.0):
         if kind not in self.SEQUENCES:
             raise ValueError(f"Unknown sequence '{kind}'. Choose: {self.SEQUENCES}")
         self.kind = kind
