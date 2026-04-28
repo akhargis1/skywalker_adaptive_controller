@@ -37,3 +37,12 @@ Ensure Skywalker model is installed with
 ```python3 x8_plot.py sitl_run_1234567890.npz --save ```
 
 ```python3 x8_plot.py sitl_run_1234567890.npz --panel 1 ```
+
+#### Sliding Mode Control Prototype
+Run SITL and Gazebo instance as above, then set plane on takeoff to cruise altitude ('arm throttle', 'mode TAKEOFF' in MAVLink terminal)
+
+```python3 x8_run_smc.py --alt 100 --leg 400 --radius 100 --legs 10 --no-alt```
+
+This should attempt to the SMC controller on a lawnmower trajectory pattern at altitude 100m, straight legs 400m, turns at 100m radius, and 10 legs total. 
+
+SW: DOES NOT WORK WELL - DON'T THINK SPEED COMMAND IS CORRECT. Also it is putting it in GUIDED MODE and think we should do FWBA.. 
