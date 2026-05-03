@@ -36,6 +36,14 @@ class VehicleState:
     airspeed: float = 17.0
     alpha:    float = 0.0    # rad — needs AOA_ENABLE=1 in ArduPilot params
     beta:     float = 0.0    # rad
+    # Position and velocity — NED frame (m, m/s); from LOCAL_POSITION_NED
+    x:        float = 0.0   # North (m)
+    y:        float = 0.0   # East (m)
+    z:        float = 0.0   # Down (m); positive = below home
+    vx:       float = 0.0   # North velocity (m/s)
+    vy:       float = 0.0   # East velocity (m/s)
+    vz:       float = 0.0   # Down velocity (m/s); positive = descending
+    pos_valid: bool = False  # True once first LOCAL_POSITION_NED received
     # Vehicle status
     armed:    bool  = False
     mode:     int   = -1
@@ -71,10 +79,11 @@ class MAVReceiver(threading.Thread):
     Writes parsed fields into StateBuffer.
 
     Messages consumed:
-        ATTITUDE    → phi, theta, psi, p, q, r
-        VFR_HUD     → airspeed
-        AOA_SSA     → alpha, beta  (set AOA_ENABLE=1 in ArduPilot)
-        HEARTBEAT   → armed, mode
+        ATTITUDE            → phi, theta, psi, p, q, r
+        VFR_HUD             → airspeed
+        AOA_SSA             → alpha, beta  (set AOA_ENABLE=1 in ArduPilot)
+        HEARTBEAT           → armed, mode
+        LOCAL_POSITION_NED  → x, y, z, vx, vy, vz, pos_valid
     """
 
     def __init__(self, conn, buf: StateBuffer, verbose: bool = False):
@@ -105,6 +114,12 @@ class MAVReceiver(threading.Thread):
                 self.buf.write(
                     alpha=math.radians(msg.AOA),
                     beta=math.radians(msg.SSA),
+                )
+            elif t == 'LOCAL_POSITION_NED':
+                self.buf.write(
+                    x=float(msg.x), y=float(msg.y), z=float(msg.z),
+                    vx=float(msg.vx), vy=float(msg.vy), vz=float(msg.vz),
+                    pos_valid=True,
                 )
             elif t == 'HEARTBEAT':
                 armed = bool(
@@ -199,10 +214,14 @@ def send_attitude_target(conn,
                          roll_rate_d:  float = 0.0,
                          pitch_rate_d: float = 0.0,
                          yaw_rate_d:   float = 0.0,
-                         thrust:       float = 0.6):
+                         thrust:       float = 0.6,
+                         type_mask:    int   = 0b00000000):
     """
     Send SET_ATTITUDE_TARGET.
-    ArduPlane uses the quaternion for attitude hold; rates are feedforward.
+
+    type_mask bits (set=ignore):
+        0b00000111 — ignore body rates, use attitude quaternion + thrust
+        0b00000000 — use attitude + rates + thrust (default)
     """
     cy, sy = math.cos(yaw_d   / 2), math.sin(yaw_d   / 2)
     cp, sp = math.cos(pitch_d / 2), math.sin(pitch_d / 2)
@@ -217,7 +236,7 @@ def send_attitude_target(conn,
         int(time.monotonic() * 1000) & 0xFFFFFFFF,
         conn.target_system,
         conn.target_component,
-        0b00000000,
+        type_mask,
         q,
         roll_rate_d, pitch_rate_d, yaw_rate_d,
         thrust,
@@ -259,6 +278,53 @@ def toggle_research_mode(connection, active=True):
             )
         print(f"Mode Switched: {'Direct Research Control' if active else 'ArduPilot Internal'}")
         
+
+def send_airspeed_command(conn, v_cmd: float):
+    """
+    Command a target airspeed (m/s) via TECS (MAV_CMD_DO_CHANGE_SPEED).
+    Effective in GUIDED and AUTO modes; ignored in MANUAL/FBWA.
+    """
+    conn.mav.command_long_send(
+        conn.target_system, conn.target_component,
+        mavutil.mavlink.MAV_CMD_DO_CHANGE_SPEED, 0,
+        0,      # speed type: 0 = airspeed
+        v_cmd,  # speed (m/s)
+        -1,     # throttle % (-1 = no change)
+        0, 0, 0, 0,
+    )
+
+
+def send_altitude_command(conn, z_cmd_ned: float):
+    """
+    Command a target altitude by setting LOCAL_NED z coordinate (positive = down).
+    Uses SET_POSITION_TARGET_LOCAL_NED with only the z axis unmasked.
+
+    z_cmd_ned: NED down coordinate (m); more negative = higher altitude.
+               Convert from AGL altitude: z_cmd_ned = -h_agl
+    """
+    TYPE_MASK_Z_ONLY = (
+        mavutil.mavlink.POSITION_TARGET_TYPEMASK_X_IGNORE
+        | mavutil.mavlink.POSITION_TARGET_TYPEMASK_Y_IGNORE
+        | mavutil.mavlink.POSITION_TARGET_TYPEMASK_VX_IGNORE
+        | mavutil.mavlink.POSITION_TARGET_TYPEMASK_VY_IGNORE
+        | mavutil.mavlink.POSITION_TARGET_TYPEMASK_VZ_IGNORE
+        | mavutil.mavlink.POSITION_TARGET_TYPEMASK_AX_IGNORE
+        | mavutil.mavlink.POSITION_TARGET_TYPEMASK_AY_IGNORE
+        | mavutil.mavlink.POSITION_TARGET_TYPEMASK_AZ_IGNORE
+        | mavutil.mavlink.POSITION_TARGET_TYPEMASK_YAW_IGNORE
+        | mavutil.mavlink.POSITION_TARGET_TYPEMASK_YAW_RATE_IGNORE
+    )
+    conn.mav.set_position_target_local_ned_send(
+        int(time.monotonic() * 1000) & 0xFFFFFFFF,
+        conn.target_system, conn.target_component,
+        mavutil.mavlink.MAV_FRAME_LOCAL_NED,
+        TYPE_MASK_Z_ONLY,
+        0.0, 0.0, z_cmd_ned,   # x, y, z
+        0.0, 0.0, 0.0,         # vx, vy, vz
+        0.0, 0.0, 0.0,         # ax, ay, az
+        0.0, 0.0,              # yaw, yaw_rate
+    )
+
 
 def send_elevon_direct(conn,
                        delta_L_rad:      float,
