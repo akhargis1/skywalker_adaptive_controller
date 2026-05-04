@@ -215,7 +215,7 @@ class PathSMC:
         x_r      = ref.x_ref
         y_r      = ref.y_ref
         psi_r    = ref.psi_ref
-        v_d_local = ref.v_ref                              # speed at nearest point
+        v_d = ref.v_ref                              # speed at nearest point
  
         # Virtual particle — schedule reference for e_t and feedforward
         vp       = self.traj.query(t)
@@ -231,7 +231,7 @@ class PathSMC:
         h_ref    = self.traj.altitude                      # reference altitude AGL (m)
  
         # Curvature — split for local geometry vs feedforward
-        kappa_local = (ref.psi_dot_ref / v_d_local
+        kappa_local = (ref.psi_dot_ref / v_d
                        if abs(v_d_local) > 0.1 else 0.0)
         kappa_ff    = (vp.psi_dot_ref / v_d_ff
                        if abs(v_d_ff) > 0.1 else 0.0)
