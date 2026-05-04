@@ -113,6 +113,9 @@ class LawnmowerTrajectory:
     # Segment precomputation
     # ------------------------------------------------------------------
 
+    def s_at_t(self, t: float) -> float:
+        """Arc length at virtual particle time t (constant speed)."""
+        return float(_clamp(self.airspeed * t, 0.0, self.total_length))
     def _build_segments(self):
         t = 0.0
         x, y = 0.0, 0.0

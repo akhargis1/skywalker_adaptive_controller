@@ -210,26 +210,31 @@ class PathSMC:
         # ------------------------------------------------------------------
         # 1. Reference trajectory
         # ------------------------------------------------------------------
-        ref   = self.traj.query(self.traj.nearest_t(x,y))
-        s_star = self.traj.nearest_s(x,y)
-
-        virtual_particle = self.traj.query(t)
-        x_vp = virtual_particle.x_ref
-        y_vp = virtual_particle.y_ref
-
-        x_r   = ref.x_ref
-        y_r   = ref.y_ref
-            
-        s_ref = self.traj.nearest_s(x_vp, y_vp)
-        h_ref = self.traj.altitude        # reference altitude AGL (m)
-        psi_r = ref.psi_ref
-        v_d   = ref.v_ref
-        v_d_ff = virtual_particle.v_ref
-
-        #kappa = ref.psi_dot_ref / v_d if abs(v_d) > 0.1 else 0.0
-        kappa_local = ref.psi_dot_ref / v_d if abs(v_d) > 0.1 else 0.0
-        kappa_ff    = virtual_particle.psi_dot_ref / v_d_ff if abs(v_d_ff) > 0.1 else 0.0
-
+        # Nearest point on path — geometry for e_n and surface curvature
+        ref      = self.traj.query(self.traj.nearest_t(x, y))
+        x_r      = ref.x_ref
+        y_r      = ref.y_ref
+        psi_r    = ref.psi_ref
+        v_d_local = ref.v_ref                              # speed at nearest point
+ 
+        # Virtual particle — schedule reference for e_t and feedforward
+        vp       = self.traj.query(t)
+        v_d_ff   = vp.v_ref                               # speed at virtual particle
+ 
+        # Arc-length errors
+        # s_star: arc length of nearest point to UAV
+        # s_ref:  arc length of virtual particle
+        # Use s_at_t for virtual particle — avoids re-projecting a path point onto itself
+        s_star   = self.traj.nearest_s(x, y)
+        s_ref    = self.traj.s_at_t(t)                    # direct lookup, no projection
+ 
+        h_ref    = self.traj.altitude                      # reference altitude AGL (m)
+ 
+        # Curvature — split for local geometry vs feedforward
+        kappa_local = (ref.psi_dot_ref / v_d_local
+                       if abs(v_d_local) > 0.1 else 0.0)
+        kappa_ff    = (vp.psi_dot_ref / v_d_ff
+                       if abs(v_d_ff) > 0.1 else 0.0)
         # ------------------------------------------------------------------
         # 2. Position errors (Frenet frame)
         # ------------------------------------------------------------------
