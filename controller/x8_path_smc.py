@@ -106,7 +106,7 @@ class PathSMCGains:
 
     # Throttle limits
     T_min:       float = 0.1
-    T_max:       float = 0.9
+    T_max:       float = 1
 
     # Output bank angle limit
     phi_max:     float = math.radians(45)
