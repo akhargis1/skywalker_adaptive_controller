@@ -116,6 +116,7 @@ class LawnmowerTrajectory:
     def _build_segments(self):
         t = 0.0
         x, y = 0.0, 0.0
+        s = 0.0
 
         if self.runway_length > 0.0:
             t_run = self.runway_length / self.airspeed
