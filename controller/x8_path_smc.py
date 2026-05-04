@@ -211,13 +211,24 @@ class PathSMC:
         # 1. Reference trajectory
         # ------------------------------------------------------------------
         ref   = self.traj.query(self.traj.nearest_t(x,y))
+        s_star = self.traj.nearest_s(x,y)
+
+        virtual_particle = self.traj.query(t)
+        x_vp = virtual_particle.x_ref
+        y_vp = virtual_particle.y_ref
+
         x_r   = ref.x_ref
         y_r   = ref.y_ref
+            
+        s_ref = self.traj.nearest_s(x_vp, y_vp)
         h_ref = self.traj.altitude        # reference altitude AGL (m)
         psi_r = ref.psi_ref
         v_d   = ref.v_ref
+        v_d_ff = virtual_particle.v_ref
 
-        kappa = ref.psi_dot_ref / v_d if abs(v_d) > 0.1 else 0.0
+        #kappa = ref.psi_dot_ref / v_d if abs(v_d) > 0.1 else 0.0
+        kappa_local = ref.psi_dot_ref / v_d if abs(v_d) > 0.1 else 0.0
+        kappa_ff    = virtual_particle.psi_dot_ref / v_d_ff if abs(v_d_ff) > 0.1 else 0.0
 
         # ------------------------------------------------------------------
         # 2. Position errors (Frenet frame)
@@ -227,7 +238,8 @@ class PathSMC:
         dx   = x - x_r
         dy   = y - y_r
 
-        e_t =  dx * cpsi + dy * spsi   # along-track
+        #e_t =  dx * cpsi + dy * spsi   # along-track
+        e_t = s_star - s_ref
         e_n = -dx * spsi + dy * cpsi   # cross-track (CCW positive)
 
         h   = -z                        # altitude AGL (positive = above home)
@@ -262,8 +274,8 @@ class PathSMC:
         # e_t is small; a large schedule gap (slow aircraft) otherwise saturates phi_cmd.
         e_t_s1 = _clamp(e_t, -g.e_t_cap, g.e_t_cap)
 
-        s1 = v_g * math.sin(chi_e) - kappa * v_d * e_t_s1 + g.lambda_n * e_n
-        s2 = v_g * math.cos(chi_e) - v_d * (1.0 - kappa * e_n) + g.lambda_t * e_t
+        s1 = v_g * math.sin(chi_e) - kappa_local * v_d * e_t_s1 + g.lambda_n * e_n
+        s2 = v_g * math.cos(chi_e) - v_d * (1.0 - kappa_local * e_n) + g.lambda_t * e_t
         s3 = v_g * math.sin(gamma) + g.lambda_z * e_z
 
         # ------------------------------------------------------------------
@@ -274,8 +286,8 @@ class PathSMC:
             cos_chi = math.copysign(0.1, cos_chi)
 
         phi_num = (-g.eta_n * _sat(s1, g.phi_n)
-                   + kappa * v_d ** 2 * cos_chi   # curvature feedforward
-                   + kappa * v_d * e_t_dot        # coupling compensation
+                   + kappa_ff * v_d_ff ** 2 * cos_chi   # curvature feedforward
+                   + kappa_local * v_d * e_t_dot        # coupling compensation
                    - g.lambda_n * e_n_dot)          # damping
 
         phi_cmd = math.atan2(phi_num, G * cos_chi)
@@ -296,7 +308,7 @@ class PathSMC:
         T_cmd = g.T_trim + g.K_scale * (
             -g.eta_t * _sat(s2, g.phi_t)
             + v_g * math.sin(chi_e) * chi_e_dot
-            - kappa * v_d * e_n_dot
+            - kappa_local * v_d * e_n_dot
             - g.lambda_t * e_t_dot
         )
         T_cmd = _clamp(T_cmd, g.T_min, g.T_max)
@@ -308,7 +320,7 @@ class PathSMC:
             phi_cmd=phi_cmd, theta_cmd=self._theta_cmd, T_cmd=T_cmd,
             s1=s1, s2=s2, s3=s3,
             e_n=e_n, e_t=e_t, e_z=e_z, chi_err=chi_e, gamma=gamma,
-            psi_r=psi_r, kappa=kappa, x_r=x_r, y_r=y_r,
+            psi_r=psi_r, kappa=kappa_local, x_r=x_r, y_r=y_r,
         )
 
 

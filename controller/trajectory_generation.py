@@ -137,17 +137,20 @@ class LawnmowerTrajectory:
             psi = 0.0 if heading_north else math.pi
             dx  = 1.0 if heading_north else -1.0
 
-            # straight leg
-            self._t_starts.append(t)
             self._segments.append({
-                'type':    'straight',
+                'type': 'straight',
                 't_start': t,
-                't_end':   t + self._t_leg,
+                't_end': t + self._t_leg,
                 'x0': x, 'y0': y,
                 'psi': psi,
-                'dx':  dx,
+                'dx': dx,
                 'length': self.leg_length,
+
+                # ADD THESE
+                's_start': s,
+                's_end': s + self.leg_length,
             })
+            s += self.leg_length
             t += self._t_leg
             x += self.leg_length * dx
 
@@ -160,19 +163,27 @@ class LawnmowerTrajectory:
                 sign = 1 if heading_north else -1
 
                 self._t_starts.append(t)
+                arc_len = math.pi * self.turn_radius
+
                 self._segments.append({
-                    'type':      'turn',
-                    't_start':   t,
-                    't_end':     t + self._t_turn,
+                    'type': 'turn',
+                    't_start': t,
+                    't_end': t + self._t_turn,
                     'cx': cx, 'cy': cy,
-                    'R':         self.turn_radius,
+                    'R': self.turn_radius,
                     'psi_start': psi,
-                    'sign':      sign,
+                    'sign': sign,
+
+                    # ADD THESE
+                    's_start': s,
+                    's_end': s + arc_len,
                 })
+                s += arc_len
                 t += self._t_turn
                 y += 2.0 * self.turn_radius
 
         self._t_total = t
+        self._s_total = s
 
     # ------------------------------------------------------------------
     # Public API
@@ -291,6 +302,53 @@ class LawnmowerTrajectory:
             if d2 < best_d2:
                 best_t, best_d2 = t_proj, d2
         return best_t
+
+    def nearest_s(self, x: float, y: float) -> float:
+    best_s = 0.0
+    best_d2 = float('inf')
+
+    for seg in self._segments:
+
+        if seg['type'] == 'straight':
+
+            x0 = seg['x0']
+            y0 = seg['y0']
+
+            dx = seg['dx']
+            dy = seg['dy']
+
+            s_local = (x - x0) * dx + (y - y0) * dy   # dot product with unit tangent
+            s_local = max(0.0, min(seg['length'], s_local))
+
+            cx = x0 + s_local * dx
+            cy = y0 + s_local * dy
+            d2 = (x - cx)**2 + (y - cy)**2
+        else:
+            cx_c = seg['cx']
+            cy_c = seg['cy']
+            R = seg['R']
+            sign = seg['sign']
+
+            theta = math.atan2(y - cy_c, x - cx_c)
+            THETA_ENTRY = -math.pi / 2.0
+
+            delta = (sign * (theta - THETA_ENTRY)) % (2 * math.pi)
+            delta = max(0.0, min(math.pi, delta))
+
+            s_local = R * delta
+
+            theta_c = THETA_ENTRY + sign * delta
+            near_x = cx_c + R * math.cos(theta_c)
+            near_y = cy_c + R * math.sin(theta_c)
+            d2 = (x - near_x)**2 + (y - near_y)**2
+
+        s_candidate = seg['s_start'] + s_local
+
+        if d2 < best_d2:
+            best_d2 = d2
+            best_s = s_candidate
+
+    return best_s
 
     def _project_onto_segment(self, seg: dict, x: float, y: float):
         """Return (t_proj, squared_distance) for the projection of (x,y) onto seg."""
