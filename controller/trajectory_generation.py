@@ -316,7 +316,6 @@ class LawnmowerTrajectory:
                 y0 = seg['y0']
 
                 dx = seg['dx']
-                dy = seg['dy']
 
                 s_local = (x - x0) * dx + (y - y0) * dy   # dot product with unit tangent
                 s_local = max(0.0, min(seg['length'], s_local))
