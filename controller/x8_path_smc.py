@@ -219,7 +219,7 @@ class PathSMC:
         ref_segment = ref.segment
  
         # Schedule point — feedforward curvature only
-        vp      = self.traj.query(t_schedule)
+        vp      = self.traj.query(t)
         v_d_ff  = vp.v_ref
  
         h_ref = self.traj.altitude
