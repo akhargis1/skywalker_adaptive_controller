@@ -321,7 +321,7 @@ class LawnmowerTrajectory:
                 s_local = max(0.0, min(seg['length'], s_local))
 
                 cx = x0 + s_local * dx
-                cy = y0 + s_local * dy
+                cy = y0
                 d2 = (x - cx)**2 + (y - cy)**2
             else:
                 cx_c = seg['cx']
