@@ -144,7 +144,7 @@ class LawnmowerTrajectory:
             heading_north = (leg_idx % 2 == 0)
             psi = 0.0 if heading_north else math.pi
             dx  = 1.0 if heading_north else -1.0
-
+            self._t_starts.append(t)
             self._segments.append({
                 'type': 'straight',
                 't_start': t,
