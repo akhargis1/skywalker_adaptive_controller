@@ -210,31 +210,29 @@ class PathSMC:
         # ------------------------------------------------------------------
         # 1. Reference trajectory
         # ------------------------------------------------------------------
-        # Nearest point on path — geometry for e_n and surface curvature
-        ref      = self.traj.query(self.traj.nearest_t(x, y))
-        x_r      = ref.x_ref
-        y_r      = ref.y_ref
-        psi_r    = ref.psi_ref
-        v_d = ref.v_ref                              # speed at nearest point
+        t_nearest   = self.traj.nearest_t(x, y)
+        ref         = self.traj.query(t_nearest)
+        x_r         = ref.x_ref
+        y_r         = ref.y_ref
+        psi_r       = ref.psi_ref
+        v_d   = ref.v_ref
+        ref_segment = ref.segment
  
-        # Virtual particle — schedule reference for e_t and feedforward
-        vp       = self.traj.query(t)
-        v_d_ff   = vp.v_ref                               # speed at virtual particle
+        # Schedule point — feedforward curvature only
+        vp      = self.traj.query(t_schedule)
+        v_d_ff  = vp.v_ref
  
-        # Arc-length errors
-        # s_star: arc length of nearest point to UAV
-        # s_ref:  arc length of virtual particle
-        # Use s_at_t for virtual particle — avoids re-projecting a path point onto itself
-        s_star   = self.traj.nearest_s(x, y)
-        s_ref    = self.traj.s_at_t(t)                    # direct lookup, no projection
+        h_ref = self.traj.altitude
  
-        h_ref    = self.traj.altitude                      # reference altitude AGL (m)
- 
-        # Curvature — split for local geometry vs feedforward
+        # Curvature at each point
         kappa_local = (ref.psi_dot_ref / v_d
                        if abs(v_d) > 0.1 else 0.0)
         kappa_ff    = (vp.psi_dot_ref / v_d_ff
                        if abs(v_d_ff) > 0.1 else 0.0)
+ 
+        # Gate feedforward — only when nearest point is already in a turn.
+        # Prevents early banking while aircraft is still on straight leg.
+        kappa_ff_gated = kappa_ff if ref_segment == 'turn' else 0.0
         # ------------------------------------------------------------------
         # 2. Position errors (Frenet frame)
         # ------------------------------------------------------------------
