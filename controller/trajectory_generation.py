@@ -304,51 +304,51 @@ class LawnmowerTrajectory:
         return best_t
 
     def nearest_s(self, x: float, y: float) -> float:
-    best_s = 0.0
-    best_d2 = float('inf')
+        best_s = 0.0
+        best_d2 = float('inf')
 
-    for seg in self._segments:
+        for seg in self._segments:
 
-        if seg['type'] == 'straight':
+            if seg['type'] == 'straight':
 
-            x0 = seg['x0']
-            y0 = seg['y0']
+                x0 = seg['x0']
+                y0 = seg['y0']
 
-            dx = seg['dx']
-            dy = seg['dy']
+                dx = seg['dx']
+                dy = seg['dy']
 
-            s_local = (x - x0) * dx + (y - y0) * dy   # dot product with unit tangent
-            s_local = max(0.0, min(seg['length'], s_local))
+                s_local = (x - x0) * dx + (y - y0) * dy   # dot product with unit tangent
+                s_local = max(0.0, min(seg['length'], s_local))
 
-            cx = x0 + s_local * dx
-            cy = y0 + s_local * dy
-            d2 = (x - cx)**2 + (y - cy)**2
-        else:
-            cx_c = seg['cx']
-            cy_c = seg['cy']
-            R = seg['R']
-            sign = seg['sign']
+                cx = x0 + s_local * dx
+                cy = y0 + s_local * dy
+                d2 = (x - cx)**2 + (y - cy)**2
+            else:
+                cx_c = seg['cx']
+                cy_c = seg['cy']
+                R = seg['R']
+                sign = seg['sign']
 
-            theta = math.atan2(y - cy_c, x - cx_c)
-            THETA_ENTRY = -math.pi / 2.0
+                theta = math.atan2(y - cy_c, x - cx_c)
+                THETA_ENTRY = -math.pi / 2.0
 
-            delta = (sign * (theta - THETA_ENTRY)) % (2 * math.pi)
-            delta = max(0.0, min(math.pi, delta))
+                delta = (sign * (theta - THETA_ENTRY)) % (2 * math.pi)
+                delta = max(0.0, min(math.pi, delta))
 
-            s_local = R * delta
+                s_local = R * delta
 
-            theta_c = THETA_ENTRY + sign * delta
-            near_x = cx_c + R * math.cos(theta_c)
-            near_y = cy_c + R * math.sin(theta_c)
-            d2 = (x - near_x)**2 + (y - near_y)**2
+                theta_c = THETA_ENTRY + sign * delta
+                near_x = cx_c + R * math.cos(theta_c)
+                near_y = cy_c + R * math.sin(theta_c)
+                d2 = (x - near_x)**2 + (y - near_y)**2
 
-        s_candidate = seg['s_start'] + s_local
+            s_candidate = seg['s_start'] + s_local
 
-        if d2 < best_d2:
-            best_d2 = d2
-            best_s = s_candidate
+            if d2 < best_d2:
+                best_d2 = d2
+                best_s = s_candidate
 
-    return best_s
+        return best_s
 
     def _project_onto_segment(self, seg: dict, x: float, y: float):
         """Return (t_proj, squared_distance) for the projection of (x,y) onto seg."""
