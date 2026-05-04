@@ -88,7 +88,7 @@ class PathSMCGains:
     # Disturbance-rejection gains
     eta_n:       float = 1.0
     eta_t:       float = 1.0
-    eta_z:       float = 1.0
+    eta_z:       float = .3
 
     # Boundary layer thicknesses
     phi_n:       float = 2.0
