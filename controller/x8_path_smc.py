@@ -210,7 +210,7 @@ class PathSMC:
         # ------------------------------------------------------------------
         # 1. Reference trajectory
         # ------------------------------------------------------------------
-        ref   = self.traj.query(t)
+        ref   = self.traj.query(self.traj.nearest_t(x,y))
         x_r   = ref.x_ref
         y_r   = ref.y_ref
         h_ref = self.traj.altitude        # reference altitude AGL (m)
