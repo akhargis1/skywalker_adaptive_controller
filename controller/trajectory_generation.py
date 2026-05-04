@@ -129,6 +129,9 @@ class LawnmowerTrajectory:
                 'psi': 0.0,
                 'dx':  1.0,
                 'length': self.runway_length,
+                # ADD THESE
+                's_start': s,
+                's_end': s + self.leg_length,
             })
             t += t_run
             x += self.runway_length
