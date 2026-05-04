@@ -232,7 +232,7 @@ class PathSMC:
  
         # Curvature — split for local geometry vs feedforward
         kappa_local = (ref.psi_dot_ref / v_d
-                       if abs(v_d_local) > 0.1 else 0.0)
+                       if abs(v_d) > 0.1 else 0.0)
         kappa_ff    = (vp.psi_dot_ref / v_d_ff
                        if abs(v_d_ff) > 0.1 else 0.0)
         # ------------------------------------------------------------------
