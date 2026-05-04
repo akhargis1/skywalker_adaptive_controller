@@ -317,7 +317,7 @@ class LawnmowerTrajectory:
 
                 dx = seg['dx']
 
-                s_local = (x - x0) * dx + (y - y0) * dy   # dot product with unit tangent
+                s_local = (x - x0) * dx
                 s_local = max(0.0, min(seg['length'], s_local))
 
                 cx = x0 + s_local * dx
