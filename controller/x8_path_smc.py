@@ -312,6 +312,7 @@ class PathSMC:
         chi_e_dot = G / v_g * math.tan(phi) - kappa_local * v_d
         T_cmd = g.T_trim + g.K_scale * (
             -g.eta_t * _sat(s2, g.phi_t)
+            -g.eta_t * e_t
             + v_g * math.sin(chi_e) * chi_e_dot
             - kappa_local * v_d * e_n_dot
             - g.lambda_t * e_t_dot
