@@ -242,7 +242,8 @@ class PathSMC:
         dy   = y - y_r
 
         #e_t =  dx * cpsi + dy * spsi   # along-track
-        e_t = (t_nearest - t) * v_d
+        #e_t = (t_nearest - t) * v_d
+        e_t = 0
         e_n = -dx * spsi + dy * cpsi   # cross-track (CCW positive)
 
         h   = -z                        # altitude AGL (positive = above home)
