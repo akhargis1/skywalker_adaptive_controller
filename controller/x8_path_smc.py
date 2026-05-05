@@ -24,12 +24,12 @@ Error conventions:
     e_z — altitude (m): positive = ABOVE reference   [e_z = h - h_ref = -z_NED - h_ref]
 
 Sliding surfaces:
-    s1 = v_g sin χ̃ − κ v_d e_t + λ_n e_n
+    s1 = v_g sin χ̃ + λ_n e_n
     s2 = v_g cos χ̃ − v_d(1 − κ e_n) + λ_t e_t
     s3 = v_g sin γ + λ_z e_z
 
 Control laws:
-    φ_cmd  = arctan[(−η_n sat(s1/Φ_n) + κv_d² cos χ̃ + κv_d ė_t − λ_n ė_n) / (g cos χ̃)]
+    φ_cmd  = arctan[(−η_n sat(s1/Φ_n) + κv_d² cos χ̃ − λ_n ė_n) / (g cos χ̃)]
     θ_cmd  = θ_cmd[k−1] + [(−η_z sat(s3/Φ_z) − λ_z ė_z) / (v_g cos γ)] · Δt
     T_cmd  = T_trim + K_s(−η_t sat(s2/Φ_t) + v_g sin χ̃ · χ̃̇ − κv_d ė_n − λ_t ė_t)
 
@@ -113,9 +113,6 @@ class PathSMCGains:
 
     # IIR derivative filter coefficient (0 = no update, 1 = no filtering)
     deriv_alpha: float = 0.3
-
-    # e_t cap for s1 coupling term (m): prevents large schedule gaps from destabilising bank cmd
-    e_t_cap:     float = 30.0
 
 
 # ---------------------------------------------------------------------------
@@ -275,11 +272,7 @@ class PathSMC:
         # ------------------------------------------------------------------
         # 4. Sliding surfaces
         # ------------------------------------------------------------------
-        # Cap e_t contribution to s1/phi_cmd: the coupling term -κv_d·e_t assumes
-        # e_t is small; a large schedule gap (slow aircraft) otherwise saturates phi_cmd.
-        e_t_s1 = _clamp(e_t, -g.e_t_cap, g.e_t_cap)
-
-        s1 = v_g * math.sin(chi_e) - kappa_local * v_d * e_t_s1 + g.lambda_n * e_n
+        s1 = v_g * math.sin(chi_e) + g.lambda_n * e_n
         s2 = v_g * math.cos(chi_e) - v_d * (1.0 - kappa_local * e_n) + g.lambda_t * e_t
         s3 = v_g * math.sin(gamma) + g.lambda_z * e_z
 
@@ -292,8 +285,7 @@ class PathSMC:
 
         phi_num = (-g.eta_n * _sat(s1, g.phi_n)
                    + kappa_ff * v_d_ff ** 2 * cos_chi   # curvature feedforward
-                   + kappa_local * v_d * e_t_dot        # coupling compensation
-                   - g.lambda_n * e_n_dot)          # damping
+                   - g.lambda_n * e_n_dot)              # damping
 
         phi_cmd = math.atan2(phi_num, G * cos_chi)
         phi_cmd = _clamp(phi_cmd, -g.phi_max, g.phi_max)

@@ -47,6 +47,7 @@ class VehicleState:
     # Vehicle status
     armed:    bool  = False
     mode:     int   = -1
+    throttle: float = 0.0   # 0–100 from VFR_HUD
     # Freshness flag
     valid:    bool  = False
 
@@ -109,7 +110,8 @@ class MAVReceiver(threading.Thread):
                     p=msg.rollspeed, q=msg.pitchspeed, r=msg.yawspeed,
                 )
             elif t == 'VFR_HUD':
-                self.buf.write(airspeed=max(float(msg.airspeed), 1.0))
+                self.buf.write(airspeed=max(float(msg.airspeed), 1.0),
+                               throttle=float(msg.throttle))
             elif t == 'AOA_SSA':
                 self.buf.write(
                     alpha=math.radians(msg.AOA),
@@ -135,6 +137,7 @@ class MAVReceiver(threading.Thread):
 # ---------------------------------------------------------------------------
 
 GUIDED_MODE = 15
+AUTO_MODE   = 10
 FBWA_MODE   = 2
 
 

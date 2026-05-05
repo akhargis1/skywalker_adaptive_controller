@@ -233,6 +233,8 @@ def main():
     x0 = y0 = 0.0
     tick    = 0
     t_next  = time.monotonic()
+    runway_time       = traj.runway_length / traj.airspeed if traj.runway_length > 0 else 0.0
+    t_lawnmower_start = None  # set when aircraft crosses runway end
 
     try:
         while True:
@@ -261,20 +263,32 @@ def main():
                 print(f"\n[STOP] Max time {args.max_time:.0f} s reached.")
                 break
 
+            x_rel = state.x - x0
+            y_rel = state.y - y0
+
+            # Trigger lawnmower clock once aircraft crosses runway end (or immediately if none)
+            if t_lawnmower_start is None:
+                if traj.runway_length == 0 or x_rel >= traj.runway_length:
+                    t_lawnmower_start = time.monotonic()
+                    print(f"[GO]  Lawnmower clock started at x_rel={x_rel:.1f} m")
+
+            if t_lawnmower_start is not None:
+                t_sched = runway_time + (time.monotonic() - t_lawnmower_start)
+            else:
+                t_sched = elapsed  # still in runway phase, follow wall-clock
+
             # --- Trajectory complete? ---
-            ref = traj.query(elapsed)
+            ref = traj.query(t_sched)
             if ref.segment == 'done':
                 print("\n[DONE] Trajectory complete.")
                 break
 
             # --- SMC update ---
-            x_rel = state.x - x0
-            y_rel = state.y - y0
             out = smc.update(
                 x=x_rel, y=y_rel, z=state.z,
                 vx=state.vx, vy=state.vy, vz=state.vz,
                 phi=state.phi,
-                t=elapsed,
+                t=t_sched,
             )
 
             # --- Abort check ---
