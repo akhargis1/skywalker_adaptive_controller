@@ -230,7 +230,7 @@ class PathSMC:
         #kappa_ff    = (vp.psi_dot_ref / v_d
         #              if abs(v_d_ff) > 0.1 else 0.0)
         kappa_ff = kappa_local
-        
+
         # Gate feedforward — only when nearest point is already in a turn.
         # Prevents early banking while aircraft is still on straight leg.
         kappa_ff_gated = kappa_ff if ref_segment == 'turn' else 0.0
@@ -243,8 +243,8 @@ class PathSMC:
         dy   = y - y_r
 
         #e_t =  dx * cpsi + dy * spsi   # along-track
-        #e_t = (t_nearest - t) * v_d
-        e_t = 0
+        e_t = (t_nearest - t) * v_d
+        #e_t = 0
         e_n = -dx * spsi + dy * cpsi   # cross-track (CCW positive)
 
         h   = -z                        # altitude AGL (positive = above home)
