@@ -227,9 +227,10 @@ class PathSMC:
         # Curvature at each point
         kappa_local = (ref.psi_dot_ref / v_d
                        if abs(v_d) > 0.1 else 0.0)
-        kappa_ff    = (vp.psi_dot_ref / v_d
-                       if abs(v_d_ff) > 0.1 else 0.0)
- 
+        #kappa_ff    = (vp.psi_dot_ref / v_d
+        #              if abs(v_d_ff) > 0.1 else 0.0)
+        kappa_ff = kappa_local
+        
         # Gate feedforward — only when nearest point is already in a turn.
         # Prevents early banking while aircraft is still on straight leg.
         kappa_ff_gated = kappa_ff if ref_segment == 'turn' else 0.0
