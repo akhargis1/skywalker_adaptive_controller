@@ -32,7 +32,8 @@ TAKEOFF_MODE = 13   # PLANE_MODE_TAKEOFF
 TAKEOFF_TIMEOUT  = 120.0   # s  — abort if not at altitude by this time
 AIRSPEED_TIMEOUT =  60.0   # s  — warn and proceed if not at airspeed by this time
 ALT_THRESHOLD    =  10.0   # m  — within this of target to declare altitude reached
-AIRSPEED_TOL     =   2.0   # m/s — within this of target to declare cruise reached
+AIRSPEED_TOL     =   1.0   # m/s — within this of target to declare cruise reached
+AIRSPEED_STABLE  =   6     # consecutive polls (×0.5 s = 3 wall-clock s) airspeed must hold
 NORTH_VX_SCALE   =   1.0   # fraction of airspeed to command as northward velocity
 
 
@@ -199,16 +200,25 @@ def main():
 
     # ------------------------------------------------------------------
     # Wait for airspeed to stabilise
+    # Require AIRSPEED_STABLE consecutive polls within AIRSPEED_TOL before handing off.
+    # A single poll within tolerance is not sufficient — at high speedup the aircraft
+    # may momentarily pass through the target band while still in a transient.
     # ------------------------------------------------------------------
-    t0 = time.monotonic()
+    t0           = time.monotonic()
+    stable_count = 0
     while True:
         state = buf.read()
         V       = state.airspeed
         elapsed = time.monotonic() - t0
-        print(f'\r  V={V:5.1f}/{args.airspeed:.1f} m/s   '
-              f'ψ={math.degrees(state.psi):+6.1f}°   t={elapsed:.0f} s   ',
-              end='', flush=True)
         if abs(V - args.airspeed) < AIRSPEED_TOL:
+            stable_count += 1
+        else:
+            stable_count = 0
+        print(f'\r  V={V:5.1f}/{args.airspeed:.1f} m/s   '
+              f'ψ={math.degrees(state.psi):+6.1f}°   '
+              f'stable={stable_count}/{AIRSPEED_STABLE}   t={elapsed:.0f} s   ',
+              end='', flush=True)
+        if stable_count >= AIRSPEED_STABLE:
             print()
             break
         if elapsed > AIRSPEED_TIMEOUT:
@@ -217,8 +227,8 @@ def main():
                   f'(V={V:.1f} m/s) — proceeding anyway')
             break
         time.sleep(0.5)
-        # Re-send velocity command every 5 s (ArduPlane may time out)
-        if int(elapsed) % 5 == 0 and elapsed > 0:
+        # Re-send velocity command every 2 s so ArduPlane does not time out the target
+        if elapsed > 0 and int(elapsed * 2) % 4 == 0:
             _cmd_fly_north(conn, args.airspeed)
 
     print(f'[STARTUP] Cruise conditions reached.  '

@@ -345,6 +345,7 @@ PYTHONPATH="$CONTROLLER_DIR" python3 "$CONTROLLER_DIR/x8_run_smc.py" \
   --airspeed "$AIRSPEED" \
   --runway   "$RUNWAY" \
   --max-time "$MAX_TIME" \
+  --speedup  "$SPEEDUP" \
   --log      "$LOG_PREFIX" \
   --connect  "$CONNECT"
 

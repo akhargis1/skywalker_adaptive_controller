@@ -48,6 +48,8 @@ class VehicleState:
     armed:    bool  = False
     mode:     int   = -1
     throttle: float = 0.0   # 0–100 from VFR_HUD
+    # SITL simulation time (ms since boot) from ATTITUDE message
+    time_boot_ms: float = 0.0
     # Freshness flag
     valid:    bool  = False
 
@@ -108,6 +110,7 @@ class MAVReceiver(threading.Thread):
                 self.buf.write(
                     phi=msg.roll, theta=msg.pitch, psi=msg.yaw,
                     p=msg.rollspeed, q=msg.pitchspeed, r=msg.yawspeed,
+                    time_boot_ms=float(msg.time_boot_ms),
                 )
             elif t == 'VFR_HUD':
                 self.buf.write(airspeed=max(float(msg.airspeed), 1.0),

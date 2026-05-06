@@ -161,7 +161,10 @@ def parse_args():
                    help='North lead-in runway before lawnmower grid (m); 0 to disable')
     # Runner
     p.add_argument('--max-time',  type=float, default=600.0,
-                   help='Mission time limit (s); 0 = no limit')
+                   help='Mission time limit (s wall-clock); 0 = no limit')
+    p.add_argument('--speedup',   type=float, default=1.0,
+                   help='SITL speedup factor; scales loop rate to hz*speedup wall-clock Hz '
+                        'so the SMC runs at hz sim-Hz regardless of speedup')
     p.add_argument('--log',       default='sitl_smc')
     p.add_argument('--verbose',   action='store_true')
     return p.parse_args()
@@ -173,7 +176,7 @@ def parse_args():
 
 def main():
     args = parse_args()
-    dt   = 1.0 / args.hz
+    dt   = 1.0 / (args.hz * args.speedup)   # wall-clock tick; sim-rate = hz regardless of speedup
 
     # ------------------------------------------------------------------
     # Connect + start receiver
@@ -232,13 +235,14 @@ def main():
 
     logger  = SMCLogger(prefix=args.log)
     t_start = None
+    t_start_boot_ms = None            # SITL sim-clock at mission start
     x0 = y0 = 0.0
     tick    = 0
     t_next  = time.monotonic()
-    runway_time       = traj.runway_length / traj.airspeed if traj.runway_length > 0 else 0.0
-    t_lawnmower_start = None  # set when aircraft crosses runway end
-    prev_x_rel = prev_y_rel = None   # stale-position detection
-    prev_out   = None                # last SMC output (resent on stale ticks)
+    runway_time              = traj.runway_length / traj.airspeed if traj.runway_length > 0 else 0.0
+    t_lawnmower_start_boot_ms = None  # SITL sim-clock when aircraft crosses runway end
+    prev_x_rel = prev_y_rel = None    # stale-position detection
+    prev_out   = None                 # last SMC output (resent on stale ticks)
 
     try:
         while True:
@@ -257,6 +261,7 @@ def main():
             # Start mission clock on first valid position tick
             if t_start is None:
                 t_start = time.monotonic()
+                t_start_boot_ms = state.time_boot_ms
                 x0, y0 = state.x, state.y
                 print(f"[GO]  Mission clock started. Origin: ({x0:.1f}, {y0:.1f}) NED")
 
@@ -291,16 +296,23 @@ def main():
                 tick += 1
                 continue
 
-            # Trigger lawnmower clock once aircraft crosses runway end (or immediately if none)
-            if t_lawnmower_start is None:
+            # Trigger lawnmower clock once aircraft crosses runway end (or immediately if none).
+            # Re-anchor y0 to aircraft's actual East position so the first leg aligns with
+            # wherever the aircraft entered the grid (eliminates lateral startup drift).
+            if t_lawnmower_start_boot_ms is None:
                 if traj.runway_length == 0 or x_rel >= traj.runway_length:
-                    t_lawnmower_start = time.monotonic()
-                    print(f"[GO]  Lawnmower clock started at x_rel={x_rel:.1f} m")
+                    t_lawnmower_start_boot_ms = state.time_boot_ms
+                    y_drift = y_rel
+                    y0 = state.y   # re-anchor East origin; x0 unchanged
+                    y_rel = 0.0
+                    print(f"[GO]  Lawnmower clock started at x_rel={x_rel:.1f} m, "
+                          f"y0 re-anchored (East drift was {y_drift:.1f} m)")
 
-            if t_lawnmower_start is not None:
-                t_sched = runway_time + (time.monotonic() - t_lawnmower_start)
+            if t_lawnmower_start_boot_ms is not None:
+                # Use SITL's own sim-clock so t_sched is accurate at any speedup factor.
+                t_sched = runway_time + (state.time_boot_ms - t_lawnmower_start_boot_ms) / 1000.0
             else:
-                t_sched = elapsed  # still in runway phase, follow wall-clock
+                t_sched = (state.time_boot_ms - t_start_boot_ms) / 1000.0  # runway phase
 
             # --- Trajectory complete? ---
             ref = traj.query(t_sched)
@@ -333,7 +345,7 @@ def main():
                                  type_mask=0b00000111)
 
             # --- Log ---
-            if t_lawnmower_start is not None:
+            if t_lawnmower_start_boot_ms is not None:
                 logger.record(state, out, t_sched, x=x_rel, y=y_rel)
 
             # --- Console (1 Hz) ---
