@@ -62,6 +62,7 @@ def print_summary(data, fields):
     print(f"  Cross-track peak  {np.max(np.abs(e_n)):.2f} m")
     print(f"  Altitude RMS      {np.sqrt(np.mean(e_z**2)):.2f} m")
     print(f"  Altitude peak     {np.max(np.abs(e_z)):.2f} m")
+    print(f"  Along-track RMS   {np.sqrt(np.mean(e_t**2)):.2f} m")
     print(f"  |s1| peak         {np.max(np.abs(s1)):.3f} m/s")
     print(f"  |s2| peak         {np.max(np.abs(s2)):.3f} m/s")
     print(f"  |s3| peak         {np.max(np.abs(s3)):.3f} m/s")
