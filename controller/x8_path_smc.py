@@ -93,7 +93,7 @@ class PathSMCGains:
 
     # Boundary layer thicknesses
     phi_n:       float = 2.0
-    phi_t:       float = 0.5
+    phi_t:       float = 2.0
     phi_z:       float = 0.3
 
     # Throttle adaptive initial estimates
