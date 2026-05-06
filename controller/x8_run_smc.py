@@ -309,7 +309,8 @@ def main():
                                  type_mask=0b00000111)
 
             # --- Log ---
-            logger.record(state, out, elapsed, x=x_rel, y=y_rel)
+            if t_lawnmower_start is not None:
+                logger.record(state, out, t_sched, x=x_rel, y=y_rel)
 
             # --- Console (1 Hz) ---
             if tick % int(args.hz) == 0:
