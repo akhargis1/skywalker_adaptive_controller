@@ -82,8 +82,8 @@ class PathSMCGains:
     """
     # Convergence rates (1/s)
     lambda_n:    float = 0.5
-    #lambda_t:    float = 1.5
-    lambda_t:    float = 0.2
+    lambda_t:    float = 1.5
+    #lambda_t:    float = 0.2
     lambda_z:    float = 0.2
 
     # Disturbance-rejection gains
