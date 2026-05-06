@@ -335,6 +335,8 @@ class PathSMC:
                    - kappa_local * v_d * e_n_dot
                    - g.lambda_t * e_t_dot)
 
+        f_hat_t = 0
+
         throttle_correction = -g.eta_t * _sat(s2, g.phi_t) + f_hat_t
         T_cmd_raw = self._T_trim_hat + self._K_s_hat * throttle_correction
         T_cmd = _clamp(T_cmd_raw, g.T_min, g.T_max)
