@@ -97,7 +97,7 @@ class PathSMCGains:
     phi_z:       float = 0.3
 
     # Throttle adaptive initial estimates
-    T_trim:      float = 0.75              # initial T_trim_hat (adapts online)
+    T_trim:      float = 0.9              # initial T_trim_hat (adapts online)
     K_scale:     float = 0.15             # initial K_s_hat (adapts online if Gamma_K > 0)
 
     # Projection bounds for adaptive throttle estimates
