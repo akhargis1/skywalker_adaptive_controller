@@ -146,53 +146,65 @@ def _wrap_to_pi(angle: float) -> float:
 
 
 # ---------------------------------------------------------------------------
-# Home position
+# Anchor position
 # ---------------------------------------------------------------------------
 
-def get_home_position(conn, timeout: float = 15.0):
+def get_anchor_position(conn, timeout: float = 15.0):
     """
-    Request HOME_POSITION from ArduPilot and return (lat_deg, lon_deg, alt_msl_m).
-    Raises SystemExit on timeout.
+    Read current aircraft global position from GLOBAL_POSITION_INT.
+    Returns (lat_deg, lon_deg).
+
+    Must be called BEFORE MAVReceiver is started — the receiver thread would
+    otherwise consume this message first.  GLOBAL_POSITION_INT is broadcast
+    continuously so no explicit request is needed.
     """
-    conn.mav.command_long_send(
-        conn.target_system, conn.target_component,
-        mavutil.mavlink.MAV_CMD_GET_HOME_POSITION,
-        0, 0, 0, 0, 0, 0, 0, 0,
-    )
     t0 = time.monotonic()
     while time.monotonic() - t0 < timeout:
-        msg = conn.recv_match(type='HOME_POSITION', blocking=True, timeout=1.0)
-        if msg:
-            return msg.latitude / 1e7, msg.longitude / 1e7, msg.altitude / 1000.0
-    sys.exit("[ERROR] HOME_POSITION not received within timeout. "
-             "Ensure the vehicle is armed or has a valid home set.")
+        msg = conn.recv_match(type='GLOBAL_POSITION_INT', blocking=True, timeout=1.0)
+        if msg and msg.lat != 0:
+            return msg.lat / 1e7, msg.lon / 1e7
+    sys.exit("[ERROR] GLOBAL_POSITION_INT not received — "
+             "is the vehicle flying with a valid GPS fix?")
 
 
 # ---------------------------------------------------------------------------
 # Mission upload
 # ---------------------------------------------------------------------------
 
-def _build_waypoints(traj: LawnmowerTrajectory):
-    """Return list of (x_north, y_east) for the endpoint of each straight segment."""
+def _build_waypoints(traj: LawnmowerTrajectory, wp_divs: int = 1):
+    """Return list of (x_north, y_east) waypoints sampled along the trajectory.
+
+    wp_divs=1 (default): one WP at each straight-leg endpoint, turns skipped.
+    wp_divs>1: wp_divs evenly-spaced WPs per segment (straight AND turn arcs),
+               with adjacent near-duplicate positions deduplicated.
+    """
     wps = []
+    prev_pos = None
     for seg in traj._segments:
-        if seg['type'] == 'straight':
-            x_end = seg['x0'] + seg['length'] * seg['dx']
-            y_end = seg['y0']
-            wps.append((x_end, y_end))
+        if seg['type'] == 'turn' and wp_divs == 1:
+            continue  # preserve current behavior when not discretizing
+        dt = seg['t_end'] - seg['t_start']
+        for k in range(1, wp_divs + 1):
+            t = seg['t_start'] + k * dt / wp_divs
+            pt = traj.query(t)
+            pos = (round(pt.x_ref, 2), round(pt.y_ref, 2))
+            if pos != prev_pos:   # deduplicate turn-exit == next-leg-start
+                wps.append((pt.x_ref, pt.y_ref))
+                prev_pos = pos
     return wps
 
 
 def upload_mission(conn, traj: LawnmowerTrajectory, home_lat: float, home_lon: float,
-                   alt_agl: float, airspeed: float, verbose: bool = False):
+                   alt_agl: float, airspeed: float,
+                   wp_divs: int = 1, verbose: bool = False):
     """
     Upload lawnmower waypoints as a MAVLink AUTO mission.
 
     Mission structure:
         Item 0 : MAV_CMD_DO_CHANGE_SPEED  (set cruise airspeed)
-        Item 1…N : NAV_WAYPOINT at each straight-leg endpoint
+        Item 1…N : NAV_WAYPOINT at each sampled trajectory point
     """
-    waypoints = _build_waypoints(traj)
+    waypoints = _build_waypoints(traj, wp_divs)
     total_items = 1 + len(waypoints)
 
     print(f"[MISS] Uploading {total_items} mission items "
@@ -304,6 +316,9 @@ def parse_args():
     # Runner
     p.add_argument('--max-time',  type=float, default=600.0,
                    help='Observation time limit (s); 0 = no limit')
+    p.add_argument('--wp-divs',   type=int,   default=1,
+                   help='Waypoints per trajectory segment (1=leg endpoints only; '
+                        '>1 adds evenly-spaced WPs through turns for finer L1 fidelity)')
     p.add_argument('--log',       default='sitl_l1')
     p.add_argument('--verbose',   action='store_true')
     return p.parse_args()
@@ -318,9 +333,21 @@ def main():
     dt   = 1.0 / args.hz
 
     # ------------------------------------------------------------------
-    # Connect + start receiver
+    # Connect
     # ------------------------------------------------------------------
-    conn     = connect(args.connect, stream_hz=int(args.hz))
+    conn = connect(args.connect, stream_hz=int(args.hz))
+
+    # Capture anchor position BEFORE starting receiver thread.
+    # The receiver would otherwise consume GLOBAL_POSITION_INT first.
+    # Anchoring to current position mirrors SMC's x0/y0 capture —
+    # the trajectory starts from wherever the aircraft is right now.
+    print("[ANCHOR] Reading current aircraft position ...")
+    anchor_lat, anchor_lon = get_anchor_position(conn)
+    print(f"[ANCHOR] lat={anchor_lat:.6f}  lon={anchor_lon:.6f}")
+
+    # ------------------------------------------------------------------
+    # Start receiver
+    # ------------------------------------------------------------------
     buf      = StateBuffer()
     receiver = MAVReceiver(conn, buf, verbose=args.verbose)
     receiver.start()
@@ -328,13 +355,6 @@ def main():
     print("[WAIT] Waiting for attitude telemetry ...")
     if not wait_for_state(buf, timeout=10.0):
         sys.exit("[ERROR] No attitude data after 10 s.")
-
-    # ------------------------------------------------------------------
-    # Get home position for NED→global conversion
-    # ------------------------------------------------------------------
-    print("[HOME] Requesting HOME_POSITION ...")
-    home_lat, home_lon, home_alt_msl = get_home_position(conn)
-    print(f"[HOME] lat={home_lat:.6f}  lon={home_lon:.6f}  alt_msl={home_alt_msl:.1f} m")
 
     # ------------------------------------------------------------------
     # Build trajectory + upload mission
@@ -351,8 +371,9 @@ def main():
     print(f"[TRAJ] Total time: {traj.total_time:.1f} s  "
           f"({args.legs} legs × {args.leg} m, R={args.radius} m, alt={args.alt} m AGL)")
 
-    upload_mission(conn, traj, home_lat, home_lon,
-                   alt_agl=args.alt, airspeed=args.airspeed, verbose=args.verbose)
+    upload_mission(conn, traj, anchor_lat, anchor_lon,
+                   alt_agl=args.alt, airspeed=args.airspeed,
+                   wp_divs=args.wp_divs, verbose=args.verbose)
 
     # ------------------------------------------------------------------
     # Wait for position telemetry, then switch to AUTO
