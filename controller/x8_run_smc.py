@@ -237,6 +237,8 @@ def main():
     t_next  = time.monotonic()
     runway_time       = traj.runway_length / traj.airspeed if traj.runway_length > 0 else 0.0
     t_lawnmower_start = None  # set when aircraft crosses runway end
+    prev_x_rel = prev_y_rel = None   # stale-position detection
+    prev_out   = None                # last SMC output (resent on stale ticks)
 
     try:
         while True:
@@ -268,6 +270,27 @@ def main():
             x_rel = state.x - x0
             y_rel = state.y - y0
 
+            # --- Skip stale MAVLink readings ---
+            # When the state buffer hasn't updated, x_rel/y_rel are identical to the
+            # previous tick.  Advancing t_sched on those ticks makes e_t drift negative
+            # even though the aircraft hasn't actually fallen behind the schedule.
+            # On stale ticks: hold t_sched frozen and resend the last command.
+            is_fresh = (prev_x_rel is None
+                        or x_rel != prev_x_rel
+                        or y_rel != prev_y_rel)
+            prev_x_rel, prev_y_rel = x_rel, y_rel
+
+            if not is_fresh:
+                if prev_out is not None:
+                    send_attitude_target(conn,
+                                         roll_d=prev_out.phi_cmd,
+                                         pitch_d=prev_out.theta_cmd,
+                                         yaw_d=state.psi,
+                                         thrust=prev_out.T_cmd,
+                                         type_mask=0b00000111)
+                tick += 1
+                continue
+
             # Trigger lawnmower clock once aircraft crosses runway end (or immediately if none)
             if t_lawnmower_start is None:
                 if traj.runway_length == 0 or x_rel >= traj.runway_length:
@@ -292,6 +315,7 @@ def main():
                 phi=state.phi,
                 t=t_sched,
             )
+            prev_out = out
 
             # --- Abort check ---
             reason = _check_abort(state)
