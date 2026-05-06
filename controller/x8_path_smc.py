@@ -107,7 +107,7 @@ class PathSMCGains:
     K_s_max:     float = 0.50             # maximum throttle sensitivity
 
     # Adaptation rates (Γ* = Γ · k_T, absorbs unknown thrust gain k_T)
-    Gamma_T:     float = 0.003            # trim throttle adaptation rate
+    Gamma_T:     float = 0.01            # trim throttle adaptation rate
     #Gamma_K:     float = 0.0005              # gain adaptation rate (0 = disabled)
     Gamma_K:     float = 0.001
     
