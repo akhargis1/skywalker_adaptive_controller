@@ -101,7 +101,7 @@ class PathSMCGains:
 
     # Throttle adaptive initial estimates
     T_trim:      float = 0.9              # initial T_trim_hat (adapts online)
-    K_scale:     float = 0.15             # initial K_s_hat (adapts online if Gamma_K > 0)
+    K_scale:     float = 0.2             # initial K_s_hat (adapts online if Gamma_K > 0)
 
     # Projection bounds for adaptive throttle estimates
     T_trim_min:  float = 0.1             # minimum trim throttle
@@ -110,7 +110,7 @@ class PathSMCGains:
     K_s_max:     float = 0.50             # maximum throttle sensitivity
 
     # Adaptation rates (Γ* = Γ · k_T, absorbs unknown thrust gain k_T)
-    Gamma_T:     float = 0.01            # trim throttle adaptation rate
+    Gamma_T:     float = 0.02            # trim throttle adaptation rate
     #Gamma_K:     float = 0.0005              # gain adaptation rate (0 = disabled)
     Gamma_K:     float = 0.001
     
