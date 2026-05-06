@@ -334,8 +334,8 @@ class PathSMC:
         # ------------------------------------------------------------------
         chi_e_dot = G / v_g * math.tan(phi) - kappa_local * v_d
         f_hat_t = (v_g * math.sin(chi_e) * chi_e_dot
-                   - kappa_local * v_d * e_n_dot
-                   - g.lambda_t * e_t_dot)
+                   - kappa_local * v_d * e_n_dot)
+       #            - g.lambda_t * e_t_dot)
 
         #f_hat_t = 0
                    
