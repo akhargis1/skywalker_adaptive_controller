@@ -31,7 +31,7 @@ Sliding surfaces:
 Control laws:
     φ_cmd  = arctan[(−η_n sat(s1/Φ_n) + κv_d² cos χ̃ − λ_n ė_n) / (g cos χ̃)]
     θ_cmd  = θ_cmd[k−1] + [(−η_z sat(s3/Φ_z) − λ_z ė_z) / (v_g cos γ)] · Δt
-    T_cmd  = T_trim + K_s(−η_t sat(s2/Φ_t) + v_g sin χ̃ · χ̃̇ − κv_d ė_n − λ_t ė_t)
+    T_cmd  = T̂_trim + K̂_s(−η_t sat(s2/Φ_t) + v_g sin χ̃ · χ̃̇ − κv_d ė_n − λ_t ė_t)
 
 Stability guarantee (UUB):
     |e_n|_∞ ≤ Φ_n w̄_n / (η_n λ_n)
@@ -82,7 +82,7 @@ class PathSMCGains:
     """
     # Convergence rates (1/s)
     lambda_n:    float = 0.5
-    lambda_t:    float = 0.7
+    lambda_t:    float = 1.5
     lambda_z:    float = 0.2
 
     # Disturbance-rejection gains
@@ -95,9 +95,19 @@ class PathSMCGains:
     phi_t:       float = 0.5
     phi_z:       float = 0.3
 
-    # Throttle parameters (Option A — parameter-free)
-    T_trim:      float = 0.75              # cruise throttle fraction (tune to match actual cruise)
-    K_scale:     float = 0.15             # throttle sensitivity (tune empirically)
+    # Throttle adaptive initial estimates
+    T_trim:      float = 0.75              # initial T_trim_hat (adapts online)
+    K_scale:     float = 0.15             # initial K_s_hat (adapts online if Gamma_K > 0)
+
+    # Projection bounds for adaptive throttle estimates
+    T_trim_min:  float = 0.1             # minimum trim throttle
+    T_trim_max:  float = 1.0             # maximum trim throttle
+    K_s_min:     float = 0.05             # minimum throttle sensitivity
+    K_s_max:     float = 0.50             # maximum throttle sensitivity
+
+    # Adaptation rates (Γ* = Γ · k_T, absorbs unknown thrust gain k_T)
+    Gamma_T:     float = 0.003            # trim throttle adaptation rate
+    Gamma_K:     float = 0.0005              # gain adaptation rate (0 = disabled)
 
     # Pitch trim and limits
     theta_trim:  float = math.radians(3)  # trim pitch for level flight
@@ -123,9 +133,13 @@ class PathSMCGains:
 class SMCOutput:
     """One-tick output from PathSMC.update()."""
     # Commands (feed directly into send_attitude_target)
-    phi_cmd:   float   # bank angle (rad)
-    theta_cmd: float   # pitch angle (rad, integrated state)
-    T_cmd:     float   # throttle 0–1
+    phi_cmd:    float   # bank angle (rad)
+    theta_cmd:  float   # pitch angle (rad, integrated state)
+    T_cmd:      float   # throttle 0–1
+
+    # Adaptive throttle estimates (for logging and monitoring)
+    T_trim_hat: float   # current trim throttle estimate
+    K_s_hat:    float   # current throttle gain estimate
 
     # Sliding surfaces (m/s) — for logging and tuning
     s1: float
@@ -164,19 +178,25 @@ class PathSMC:
         self.gains = gains if gains is not None else PathSMCGains()
 
         # Persistent state
-        self._theta_cmd = self.gains.theta_trim
-        self._en_dot_f  = 0.0
-        self._et_dot_f  = 0.0
-        self._ez_dot_f  = 0.0
-        self._prev_t    = None
+        self._theta_cmd  = self.gains.theta_trim
+        self._en_dot_f   = 0.0
+        self._et_dot_f   = 0.0
+        self._ez_dot_f   = 0.0
+        self._prev_t     = None
+
+        # Adaptive throttle state
+        self._T_trim_hat = self.gains.T_trim
+        self._K_s_hat    = self.gains.K_scale
 
     def reset(self):
-        """Reset integrator and filter state (call before a new mission)."""
-        self._theta_cmd = self.gains.theta_trim
-        self._en_dot_f  = 0.0
-        self._et_dot_f  = 0.0
-        self._ez_dot_f  = 0.0
-        self._prev_t    = None
+        """Reset integrator, filter, and adaptive state (call before a new mission)."""
+        self._theta_cmd  = self.gains.theta_trim
+        self._en_dot_f   = 0.0
+        self._et_dot_f   = 0.0
+        self._ez_dot_f   = 0.0
+        self._prev_t     = None
+        self._T_trim_hat = self.gains.T_trim
+        self._K_s_hat    = self.gains.K_scale
 
     def update(self,
                x: float,  y: float,  z: float,
@@ -257,7 +277,9 @@ class PathSMC:
 
         # Velocity projections onto Frenet axes (direct, no finite diff)
         e_n_dot_raw = -spsi * vx + cpsi * vy          # normal component of v
-        e_t_dot_raw =  cpsi * vx + spsi * vy - v_d  # tangential component - v_d
+        #e_t_dot_raw =  cpsi * vx + spsi * vy - v_d  # tangential component - v_d
+        beta_kappa = kappa_local*e_n
+        e_t_dot_raw = v_g * math.cos(chi_e)/(1+beta_kappa) - v_d
         e_z_dot_raw = -vz                              # altitude rate (positive = climbing)
 
         # IIR filter
@@ -299,23 +321,39 @@ class PathSMC:
                                  g.theta_min, g.theta_max)
 
         # ------------------------------------------------------------------
-        # 7. T_cmd — throttle (along-track surface s2, Option A)
+        # 7. T_cmd — adaptive throttle (along-track surface s2)
+        #
+        # T_cmd = T_trim_hat + K_s_hat * (-eta_t sat(s2) + f_hat_t)
+        #
+        # Adaptation laws (from composite Lyapunov V2):
+        #   dot(T_trim_hat) = -Gamma_T * s2        (Gamma_T* absorbs unknown k_T)
+        #   dot(K_s_hat)    = -Gamma_K * s2 * f_sw  (Gamma_K* absorbs unknown k_T)
+        # Both suspended during actuator saturation (anti-windup).
         # ------------------------------------------------------------------
         chi_e_dot = G / v_g * math.tan(phi) - kappa_local * v_d
-        T_cmd = g.T_trim + g.K_scale * (
-            -g.eta_t * _sat(s2, g.phi_t)
-            -g.eta_t * e_t #added this line to fix thrust, not sure how legal it is but it's working
-            + v_g * math.sin(chi_e) * chi_e_dot
-            - kappa_local * v_d * e_n_dot
-            - g.lambda_t * e_t_dot
-        )
-        T_cmd = _clamp(T_cmd, g.T_min, g.T_max)
+        f_hat_t = (v_g * math.sin(chi_e) * chi_e_dot
+                   - kappa_local * v_d * e_n_dot
+                   - g.lambda_t * e_t_dot)
+
+        throttle_correction = -g.eta_t * _sat(s2, g.phi_t) + f_hat_t
+        T_cmd_raw = self._T_trim_hat + self._K_s_hat * throttle_correction
+        T_cmd = _clamp(T_cmd_raw, g.T_min, g.T_max)
+        saturated = T_cmd_raw <= g.T_min or T_cmd_raw >= g.T_max
+
+        if not saturated:
+            self._T_trim_hat = _clamp(
+                self._T_trim_hat - g.Gamma_T * s2 * dt,
+                g.T_trim_min, g.T_trim_max)
+            self._K_s_hat = _clamp(
+                self._K_s_hat - g.Gamma_K * s2 * throttle_correction * dt,
+                g.K_s_min, g.K_s_max)
 
         # ------------------------------------------------------------------
         # 8. Return
         # ------------------------------------------------------------------
         return SMCOutput(
             phi_cmd=phi_cmd, theta_cmd=self._theta_cmd, T_cmd=T_cmd,
+            T_trim_hat=self._T_trim_hat, K_s_hat=self._K_s_hat,
             s1=s1, s2=s2, s3=s3,
             e_n=e_n, e_t=e_t, e_z=e_z, chi_err=chi_e, gamma=gamma,
             psi_r=psi_r, kappa=kappa_local, x_r=x_r, y_r=y_r,

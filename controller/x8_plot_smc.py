@@ -1,16 +1,18 @@
 """
 x8_plot_smc.py — Post-flight visualiser for x8_run_smc.py logs.
 
-Four panels:
+Five panels:
     Panel 1  XY ground track   actual vs reference path (NED, East–North axes)
     Panel 2  Tracking errors   e_n, e_z vs time
     Panel 3  Sliding surfaces  s1 (cross-track), s2 (along-track), s3 (altitude)
     Panel 4  Commands          phi_cmd vs phi, theta_cmd vs theta, T_cmd
+    Panel 5  Adaptation        T_trim_hat and K_s_hat convergence vs time
 
 Usage:
     python3 x8_plot_smc.py sitl_smc_<ts>.npz
     python3 x8_plot_smc.py sitl_smc_<ts>.npz --save
     python3 x8_plot_smc.py sitl_smc_<ts>.npz --panel 1
+    python3 x8_plot_smc.py sitl_smc_<ts>.npz --panel 5
 """
 
 import argparse
@@ -37,6 +39,13 @@ def col(data, fields, name):
     return data[:, fields.index(name)]
 
 
+def col_safe(data, fields, name, default=np.nan):
+    """Return column by name, or an array of `default` if absent (old logs)."""
+    if name in fields:
+        return data[:, fields.index(name)]
+    return np.full(len(data), default)
+
+
 def print_summary(data, fields):
     t     = col(data, fields, 't')
     e_n   = col(data, fields, 'e_n')
@@ -56,7 +65,46 @@ def print_summary(data, fields):
     print(f"  |s2| peak         {np.max(np.abs(s2)):.3f} m/s")
     print(f"  |s3| peak         {np.max(np.abs(s3)):.3f} m/s")
     print(f"  Throttle mean     {np.mean(T_cmd):.3f}  (min {np.min(T_cmd):.2f}  max {np.max(T_cmd):.2f})")
+    if 'T_trim_hat' in fields:
+        T_trim_hat = col(data, fields, 'T_trim_hat')
+        K_s_hat    = col(data, fields, 'K_s_hat')
+        print(f"  T_trim_hat final  {T_trim_hat[-1]:.4f}  (init {T_trim_hat[0]:.4f})")
+        print(f"  K_s_hat final     {K_s_hat[-1]:.4f}   (init {K_s_hat[0]:.4f})")
     print("────────────────────────────────────────────────────\n")
+
+
+def _plot_adaptation(ax, data, fields, t):
+    """Render T_trim_hat / K_s_hat convergence onto an existing axes."""
+    T_trim_hat = col_safe(data, fields, 'T_trim_hat')
+    K_s_hat    = col_safe(data, fields, 'K_s_hat')
+
+    if np.all(np.isnan(T_trim_hat)):
+        ax.text(0.5, 0.5, 'No adaptation data in this log\n(pre-adaptive log file)',
+                ha='center', va='center', transform=ax.transAxes, fontsize=11,
+                color='#888780')
+        ax.set_title('Adaptive throttle estimates', fontsize=11)
+        ax.grid(True, lw=0.3)
+        return
+
+    ax.plot(t, T_trim_hat, color='#378ADD', lw=1.5, label='T̂_trim')
+    ax.axhline(T_trim_hat[0], color='#378ADD', lw=0.8, ls='--', alpha=0.5,
+               label=f'T̂_trim init ({T_trim_hat[0]:.3f})')
+    ax.set_xlabel('Time (s)')
+    ax.set_ylabel('T̂_trim (throttle fraction)', color='#378ADD')
+    ax.tick_params(axis='y', labelcolor='#378ADD')
+
+    ax2 = ax.twinx()
+    ax2.plot(t, K_s_hat, color='#D85A30', lw=1.5, label='K̂_s')
+    ax2.axhline(K_s_hat[0], color='#D85A30', lw=0.8, ls='--', alpha=0.5,
+                label=f'K̂_s init ({K_s_hat[0]:.3f})')
+    ax2.set_ylabel('K̂_s (throttle sensitivity)', color='#D85A30')
+    ax2.tick_params(axis='y', labelcolor='#D85A30')
+
+    ax.set_title('Adaptive throttle estimates (T̂_trim, K̂_s)', fontsize=11)
+    lines1, labels1 = ax.get_legend_handles_labels()
+    lines2, labels2 = ax2.get_legend_handles_labels()
+    ax.legend(lines1 + lines2, labels1 + labels2, fontsize=8, ncol=2)
+    ax.grid(True, lw=0.3)
 
 
 def plot_panel(fig, gs, row, col_idx, data, fields, panel_num):
@@ -132,15 +180,24 @@ def plot_panel(fig, gs, row, col_idx, data, fields, panel_num):
         ax.legend(lines1 + lines2, labels1 + labels2, fontsize=7, ncol=2)
         ax.grid(True, lw=0.3)
 
+    elif panel_num == 5:
+        ax = fig.add_subplot(gs[row, col_idx])
+        _plot_adaptation(ax, data, fields, t)
+
 
 def plot_all(data, fields, title='', save=False, out_path=''):
-    fig = plt.figure(figsize=(14, 10), constrained_layout=True)
+    fig = plt.figure(figsize=(14, 13), constrained_layout=True)
     fig.suptitle(title or 'X8 Path-following SMC', fontsize=13)
-    gs = gridspec.GridSpec(2, 2, figure=fig)
+    gs = gridspec.GridSpec(3, 2, figure=fig)
 
     positions = [(0, 0, 1), (0, 1, 2), (1, 0, 3), (1, 1, 4)]
     for r, c, p in positions:
         plot_panel(fig, gs, r, c, data, fields, p)
+
+    # Panel 5 spans both columns in the bottom row
+    ax5 = fig.add_subplot(gs[2, :])
+    _plot_adaptation(ax5, data, fields, col(data, fields, 't'))
+
 
     if save:
         p = Path(out_path or 'x8_smc_plot.png')
@@ -169,7 +226,7 @@ def main():
     ap.add_argument('--save',        action='store_true', help='Save PNG instead of showing')
     ap.add_argument('--out',         default='', help='Output PNG path')
     ap.add_argument('--panel',       type=int, default=0,
-                    help='Show single panel (1=track, 2=errors, 3=surfaces, 4=commands)')
+                    help='Show single panel (1=track, 2=errors, 3=surfaces, 4=commands, 5=adaptation)')
     ap.add_argument('--no-summary',  action='store_true')
     args = ap.parse_args()
 

@@ -82,6 +82,7 @@ _FIELDS = [
     'kappa', 'psi_r',
     's1', 's2', 's3',
     'phi_cmd', 'theta_cmd', 'T_cmd',
+    'T_trim_hat', 'K_s_hat',
     'x_r', 'y_r',
     'gamma',
 ]
@@ -106,6 +107,7 @@ class SMCLogger:
             out.kappa, out.psi_r,
             out.s1, out.s2, out.s3,
             out.phi_cmd, out.theta_cmd, out.T_cmd,
+            out.T_trim_hat, out.K_s_hat,
             out.x_r, out.y_r,
             out.gamma,
         ])
@@ -319,7 +321,9 @@ def main():
                     f"s1={out.s1:+5.2f}  "
                     f"φ={math.degrees(out.phi_cmd):+6.1f}°  "
                     f"θ={math.degrees(out.theta_cmd):+5.1f}°  "
-                    f"T={out.T_cmd:.2f}  [{ref.segment}]"
+                    f"T={out.T_cmd:.2f}  "
+                    f"T̂_trim={out.T_trim_hat:.3f}  K̂_s={out.K_s_hat:.3f}  "
+                    f"[{ref.segment}]"
                 )
 
             tick += 1
