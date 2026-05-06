@@ -83,7 +83,7 @@ class PathSMCGains:
     # Convergence rates (1/s)
     lambda_n:    float = 0.5
     #lambda_t:    float = 1.5
-    lambda_t:    float = 0.4
+    lambda_t:    float = 0.2
     lambda_z:    float = 0.2
 
     # Disturbance-rejection gains
@@ -93,7 +93,7 @@ class PathSMCGains:
 
     # Boundary layer thicknesses
     phi_n:       float = 2.0
-    phi_t:       float = 3.0
+    phi_t:       float = 2.0
     phi_z:       float = 0.3
 
     # Throttle adaptive initial estimates
