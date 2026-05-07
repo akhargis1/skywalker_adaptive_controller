@@ -134,7 +134,7 @@ def plot_panel(fig, gs, row, col_idx, data, fields, panel_num):
         e_t = col(data, fields, 'e_t')
         e_z = col(data, fields, 'e_z')
         ax.plot(t, e_n, color='#378ADD', lw=1.2, label='e_n cross-track (m)')
-        ax.plot(t, e_t, color='#398DCE', lw=1.2, label='e_t along-track (m)')
+        ax.plot(t, e_t, color='#2CA02C', lw=1.2, label='e_t along-track (m)')
         ax.plot(t, e_z, color='#D85A30', lw=1.2, label='e_z altitude (m)')
         ax.axhline(0, color='#888780', lw=0.5)
         ax.set_xlabel('Time (s)')
