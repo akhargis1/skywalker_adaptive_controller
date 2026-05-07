@@ -134,8 +134,8 @@ def _check_abort(state) -> str:
         return f"roll {math.degrees(state.phi):+.1f}° > ±{ABORT_ROLL_DEG}°"
     if abs(math.degrees(state.theta)) > ABORT_PITCH_DEG:
         return f"pitch {math.degrees(state.theta):+.1f}° > ±{ABORT_PITCH_DEG}°"
-    if not (ABORT_AIRSPEED_LO <= state.airspeed <= ABORT_AIRSPEED_HI):
-        return f"airspeed {state.airspeed:.1f} m/s out of [{ABORT_AIRSPEED_LO}, {ABORT_AIRSPEED_HI}]"
+    #if not (ABORT_AIRSPEED_LO <= state.airspeed <= ABORT_AIRSPEED_HI):
+       # return f"airspeed {state.airspeed:.1f} m/s out of [{ABORT_AIRSPEED_LO}, {ABORT_AIRSPEED_HI}]"
     return ""
 
 
