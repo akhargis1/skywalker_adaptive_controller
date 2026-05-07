@@ -51,7 +51,7 @@ from x8_mavlink import (
 # ---------------------------------------------------------------------------
 # Safety abort limits  (same as x8_run_smc.py)
 # ---------------------------------------------------------------------------
-ABORT_ROLL_DEG    = 55.0
+ABORT_ROLL_DEG    = 75.0
 ABORT_PITCH_DEG   = 35.0
 ABORT_AIRSPEED_LO =  9.0
 ABORT_AIRSPEED_HI = 28.0
@@ -171,66 +171,116 @@ def get_anchor_position(conn, timeout: float = 15.0):
 # Mission upload
 # ---------------------------------------------------------------------------
 
-def _build_waypoints(traj: LawnmowerTrajectory, wp_divs: int = 1):
-    """Return list of (x_north, y_east) waypoints sampled along the trajectory.
+# ---------------------------------------------------------------------------
+# Mission helpers — straight legs with loiter-turn transitions
+# ---------------------------------------------------------------------------
 
-    wp_divs=1 (default): one WP at each straight-leg endpoint, turns skipped.
-    wp_divs>1: wp_divs evenly-spaced WPs per segment (straight AND turn arcs),
-               with adjacent near-duplicate positions deduplicated.
+def _build_mission_items(traj: LawnmowerTrajectory):
     """
-    wps = []
-    prev_pos = None
-    for seg in traj._segments:
-        if seg['type'] == 'turn' and wp_divs == 1:
-            continue  # preserve current behavior when not discretizing
-        dt = seg['t_end'] - seg['t_start']
-        for k in range(1, wp_divs + 1):
-            t = seg['t_start'] + k * dt / wp_divs
-            pt = traj.query(t)
-            pos = (round(pt.x_ref, 2), round(pt.y_ref, 2))
-            if pos != prev_pos:   # deduplicate turn-exit == next-leg-start
-                wps.append((pt.x_ref, pt.y_ref))
-                prev_pos = pos
-    return wps
+    Return a list of mission item descriptors for a clean lawnmower pattern:
+      - Each straight leg ends with a NAV_WAYPOINT at the leg exit point.
+      - Each turn arc becomes a NAV_LOITER_TURNS centered at the arc center,
+        with the correct radius and direction (+1 CW / -1 CCW).
 
+    Each item is a dict:
+        {'type': 'waypoint', 'x': float, 'y': float}
+        {'type': 'loiter',   'cx': float, 'cy': float,
+                             'radius': float, 'turns': float, 'dir': int}
+    """
+    items = []
+    for seg in traj._segments:
+        if seg['type'] == 'straight':
+            # Endpoint of the straight leg
+            pt = traj.query(seg['t_end'])
+            items.append({'type': 'waypoint', 'x': pt.x_ref, 'y': pt.y_ref})
+
+        elif seg['type'] == 'turn':
+            # Arc center, radius, and direction are stored on the segment.
+            # Fallback: derive center from geometry if not present.
+            cx = seg.get('cx')
+            cy = seg.get('cy')
+            radius = seg.get('radius', traj.turn_radius)
+            direction = seg.get('direction', 1)   # +1 CW, -1 CCW
+
+            if cx is None or cy is None:
+                # Reconstruct center from start/end points and known radius
+                pt_s = traj.query(seg['t_start'])
+                pt_e = traj.query(seg['t_end'])
+                # Midpoint perpendicular — simple approximation for 180° turns
+                cx = (pt_s.x_ref + pt_e.x_ref) / 2.0
+                cy = (pt_s.y_ref + pt_e.y_ref) / 2.0
+
+            # Arc angle → fractional turns (lawnmower turns are nominally π rad)
+            dt   = seg['t_end'] - seg['t_start']
+            arc  = traj.airspeed * dt          # arc length (m)
+            turns = arc / (2 * math.pi * radius)  # fractional turns
+
+            items.append({
+                'type':   'loiter',
+                'cx':     cx,
+                'cy':     cy,
+                'radius': radius,
+                'turns':  max(turns, 0.5),     # ArduPlane needs ≥ 0.5 turns to register
+                'dir':    direction,
+            })
+
+    return items
+
+
+def set_loiter_radius(conn, radius_m: float, verbose: bool = False):
+    """Push WP_LOITER_RAD to ArduPlane so NAV_LOITER_TURNS uses the right radius."""
+    conn.mav.param_set_send(
+        conn.target_system,
+        conn.target_component,
+        b'WP_LOITER_RAD',
+        radius_m,           # positive = CW, negative = CCW
+        mavutil.mavlink.MAV_PARAM_TYPE_REAL32,
+    )
+    ack = conn.recv_match(type='PARAM_VALUE', blocking=True, timeout=5.0)
+    if verbose or ack is None:
+        print(f"[PARAM] WP_LOITER_RAD set to {radius_m} m  (ack={ack})")
 
 def upload_mission(conn, traj: LawnmowerTrajectory, home_lat: float, home_lon: float,
                    alt_agl: float, airspeed: float,
                    wp_divs: int = 1, verbose: bool = False):
     """
-    Upload lawnmower waypoints as a MAVLink AUTO mission.
+    Upload lawnmower mission: DO_CHANGE_SPEED → alternating NAV_WAYPOINT (leg
+    exits) and NAV_LOITER_TURNS (turn centers).
 
-    Mission structure:
-        Item 0 : MAV_CMD_DO_CHANGE_SPEED  (set cruise airspeed)
-        Item 1…N : NAV_WAYPOINT at each sampled trajectory point
+    wp_divs is accepted for API compatibility but ignored — loiter turns
+    replace the old arc-discretisation approach.
     """
-    waypoints = _build_waypoints(traj, wp_divs)
-    total_items = 1 + len(waypoints)
+    mission_items = _build_mission_items(traj)
+    total_items   = 1 + len(mission_items)   # +1 for speed command at seq 0
 
-    print(f"[MISS] Uploading {total_items} mission items "
-          f"({len(waypoints)} waypoints + 1 speed cmd) ...")
+    print(f"[MISS] Uploading {total_items} mission items ...")
+    if verbose:
+        for i, it in enumerate(mission_items):
+            print(f"  [{i+1}] {it}")
 
     # 1. Clear existing mission
-    conn.mav.mission_clear_all_send(conn.target_system, conn.target_component,
-                                    mavutil.mavlink.MAV_MISSION_TYPE_MISSION)
+    conn.mav.mission_clear_all_send(
+        conn.target_system, conn.target_component,
+        mavutil.mavlink.MAV_MISSION_TYPE_MISSION)
     ack = conn.recv_match(type='MISSION_ACK', blocking=True, timeout=5.0)
     if verbose:
         print(f"[MISS] CLEAR_ALL ack: {ack}")
 
     # 2. Announce count
-    conn.mav.mission_count_send(conn.target_system, conn.target_component,
-                                total_items, mavutil.mavlink.MAV_MISSION_TYPE_MISSION)
+    conn.mav.mission_count_send(
+        conn.target_system, conn.target_component,
+        total_items, mavutil.mavlink.MAV_MISSION_TYPE_MISSION)
 
-    # 3. Respond to MISSION_REQUEST_INT messages
+    # 3. Service MISSION_REQUEST_INT messages
     sent = 0
-    t0 = time.monotonic()
+    t0   = time.monotonic()
     while sent < total_items:
         if time.monotonic() - t0 > 30.0:
             sys.exit("[ERROR] Mission upload timed out.")
 
-        msg = conn.recv_match(type=['MISSION_REQUEST_INT', 'MISSION_REQUEST',
-                                    'MISSION_ACK'],
-                              blocking=True, timeout=5.0)
+        msg = conn.recv_match(
+            type=['MISSION_REQUEST_INT', 'MISSION_REQUEST', 'MISSION_ACK'],
+            blocking=True, timeout=5.0)
         if msg is None:
             continue
 
@@ -244,50 +294,73 @@ def upload_mission(conn, traj: LawnmowerTrajectory, home_lat: float, home_lon: f
 
         seq = msg.seq
         if verbose:
-            print(f"[MISS] Request for item {seq}")
+            print(f"[MISS] Request seq={seq}")
 
         if seq == 0:
-            # Speed command item
+            # ---- Item 0: set cruise airspeed --------------------------------
             conn.mav.mission_item_int_send(
                 conn.target_system, conn.target_component,
                 0,
                 mavutil.mavlink.MAV_FRAME_MISSION,
                 mavutil.mavlink.MAV_CMD_DO_CHANGE_SPEED,
-                0, 1,          # current=0, autocontinue=1
-                0,             # param1: speed type (0=airspeed)
-                airspeed,      # param2: speed (m/s)
-                -1,            # param3: throttle (-1 = no change)
-                0,             # param4
-                0, 0, 0,       # lat, lon, alt (unused)
+                0, 1,
+                0, airspeed, -1, 0,
+                0, 0, 0,
                 mavutil.mavlink.MAV_MISSION_TYPE_MISSION,
             )
         else:
-            # NAV_WAYPOINT for leg endpoint
-            wp_idx = seq - 1
-            x_ned, y_ned = waypoints[wp_idx]
-            lat, lon = ned_to_global(x_ned, y_ned, home_lat, home_lon)
-            if verbose:
-                print(f"[MISS]   WP {seq}: N={x_ned:.1f} E={y_ned:.1f} → "
-                      f"lat={lat:.6f} lon={lon:.6f}")
-            conn.mav.mission_item_int_send(
-                conn.target_system, conn.target_component,
-                seq,
-                mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT_INT,
-                mavutil.mavlink.MAV_CMD_NAV_WAYPOINT,
-                0, 1,          # current=0, autocontinue=1
-                0,             # param1: hold time
-                5.0,           # param2: acceptance radius (m)
-                0, 0,          # pass-through, yaw
-                int(lat * 1e7),
-                int(lon * 1e7),
-                alt_agl,
-                mavutil.mavlink.MAV_MISSION_TYPE_MISSION,
-            )
+            # ---- Items 1…N: waypoints and loiter turns ----------------------
+            it = mission_items[seq - 1]
+
+            if it['type'] == 'waypoint':
+                lat, lon = ned_to_global(it['x'], it['y'], home_lat, home_lon)
+                if verbose:
+                    print(f"[MISS]   WP  seq={seq}: N={it['x']:.1f} E={it['y']:.1f}")
+                conn.mav.mission_item_int_send(
+                    conn.target_system, conn.target_component,
+                    seq,
+                    mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT_INT,
+                    mavutil.mavlink.MAV_CMD_NAV_WAYPOINT,
+                    0, 1,
+                    0,           # hold time
+                    5.0,         # acceptance radius (m)
+                    0, 0,        # pass-through, yaw
+                    int(lat * 1e7),
+                    int(lon * 1e7),
+                    alt_agl,
+                    mavutil.mavlink.MAV_MISSION_TYPE_MISSION,
+                )
+
+            else:  # loiter
+                lat, lon = ned_to_global(it['cx'], it['cy'], home_lat, home_lon)
+                # ArduPlane param3 for LOITER_TURNS: positive = CW, negative = CCW
+                radius_signed = it['radius'] * it['dir']
+                if verbose:
+                    print(f"[MISS]   LTR seq={seq}: "
+                          f"ctr=({it['cx']:.1f},{it['cy']:.1f}) "
+                          f"R={radius_signed:.1f} m  "
+                          f"turns={it['turns']:.2f}")
+                conn.mav.mission_item_int_send(
+                    conn.target_system, conn.target_component,
+                    seq,
+                    mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT_INT,
+                    mavutil.mavlink.MAV_CMD_NAV_LOITER_TURNS,
+                    0, 1,
+                    it['turns'],     # param1: number of turns
+                    0,               # param2: heading required (0 = no)
+                    radius_signed,   # param3: radius (+CW / -CCW)
+                    0,               # param4: xtrack exit (0 = use WP_LOITER_RAD)
+                    int(lat * 1e7),
+                    int(lon * 1e7),
+                    alt_agl,
+                    mavutil.mavlink.MAV_MISSION_TYPE_MISSION,
+                )
+
         sent += 1
 
-    # 4. Set current item to 0 so ArduPlane starts from the speed command
-    conn.mav.mission_set_current_send(conn.target_system, conn.target_component, 0)
-    print(f"[MISS] Mission set current → item 0")
+    conn.mav.mission_set_current_send(
+        conn.target_system, conn.target_component, 0)
+    print("[MISS] Mission set current → item 0")
 
 
 # ---------------------------------------------------------------------------
@@ -371,6 +444,7 @@ def main():
     print(f"[TRAJ] Total time: {traj.total_time:.1f} s  "
           f"({args.legs} legs × {args.leg} m, R={args.radius} m, alt={args.alt} m AGL)")
 
+    set_loiter_radius(conn, traj.turn_radius, verbose=args.verbose)
     upload_mission(conn, traj, anchor_lat, anchor_lon,
                    alt_agl=args.alt, airspeed=args.airspeed,
                    wp_divs=args.wp_divs, verbose=args.verbose)
