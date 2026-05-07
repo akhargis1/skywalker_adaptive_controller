@@ -88,6 +88,7 @@ def print_summary(data, fields):
     t     = col(data, fields, 't')
     e_n   = col(data, fields, 'e_n')
     e_z   = col(data, fields, 'e_z')
+    e_t   = col(data, fields, 'e_t')
     T_cmd = col(data, fields, 'T_cmd')
 
     print("\n── L1 flight summary ─────────────────────────────────")
@@ -96,6 +97,8 @@ def print_summary(data, fields):
     print(f"  Cross-track peak  {np.max(np.abs(e_n)):.2f} m")
     print(f"  Altitude RMS      {np.sqrt(np.mean(e_z**2)):.2f} m")
     print(f"  Altitude peak     {np.max(np.abs(e_z)):.2f} m")
+    print(f"  Along-track RMS   {np.sqrt(np.mean(e_t**2)):.2f} m")
+    print(f"  Along-track peak  {np.max(np.abs(e_t)):.2f} m")
     print(f"  Throttle mean     {np.mean(T_cmd):.3f}  "
           f"(min {np.min(T_cmd):.2f}  max {np.max(T_cmd):.2f})")
     print("──────────────────────────────────────────────────────\n")
